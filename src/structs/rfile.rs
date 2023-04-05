@@ -1,7 +1,6 @@
-use std::{fs::File, path::PathBuf, ffi::OsStr};
+use std::{ffi::OsStr, fs::File, path::PathBuf};
 
-use uuid::{Timestamp, Uuid, Context};
-
+use uuid::{Context, Timestamp, Uuid};
 
 pub struct RFile {
     pub uuid: Uuid,
@@ -49,7 +48,12 @@ impl RFile {
         let file = File::open(&file_path).unwrap();
         RFile::new(
             uuid,
-            file_path.file_name().unwrap_or(&OsStr::new("unamed")).to_str().unwrap_or("unamed").to_string(),
+            file_path
+                .file_name()
+                .unwrap_or(&OsStr::new("unamed"))
+                .to_str()
+                .unwrap_or("unamed")
+                .to_string(),
             file.metadata().unwrap().len(),
             byte_start,
             byte_start + file.metadata().unwrap().len(),
@@ -68,9 +72,9 @@ impl RFile {
         data.push_str(",");
         data.push_str(&self.byte_end.to_string());
         data.push_str(",");
-        data.push_str(&self.is_dir.to_string());
+        data.push_str(if self.is_dir { "1" } else { "0" });
         data.push_str(",");
-        data.push_str(&self.is_file.to_string());
+        data.push_str(if self.is_file { "1" } else { "0" });
         data
     }
 }

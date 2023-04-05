@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
@@ -20,9 +20,15 @@ impl RatFile {
         if Path::new(path.as_path()).exists() {
             //TODO: check if file is a rat file
             //TODO: read metadata and inject in struct fields
+
+            let rat_file = OpenOptions::new()
+                .write(true)
+                .read(true)
+                .open(path)?;
+
             return Ok(RatFile {
                 path: path.clone(),
-                file: File::open(path)?,
+                file: rat_file,
             });
         } else {
             return Err(Error::new(ErrorKind::NotFound, "File not found"));
@@ -121,10 +127,13 @@ impl RatFile {
         let mut file = File::open(file_path)?;
         let mut buffer = Vec::new();
 
-        let start = rat_file.seek(std::io::SeekFrom::End(-1))?; //seek to end of file
+        let start = rat_file.seek(std::io::SeekFrom::End(0))?; //seek to end of file
 
         file.read_to_end(&mut buffer)?;
+        println!("{:?}", String::from_utf8((&buffer).to_owned()));
         rat_file.write_all(&buffer)?;
+        rat_file.flush()?;
+
         // Seek to the position of the first occurrence of the character '|' where we will start writing the file list
         let mut reader = BufReader::new(rat_file);
 
@@ -139,10 +148,13 @@ impl RatFile {
             .position(|b| b.unwrap() == b'|')
             .ok_or(InvalidInput)?;
 
-        file.seek(SeekFrom::Start(pos as u64))?; //getting to the position of the first occurrence of the character '|'
+        //getting to the position of the first occurrence of the character '|'
+        rat_file.seek(SeekFrom::Start((pos+1) as u64))?; //+1 because we don't want to overwrite the | 
 
         let rfile: RFile = RFile::new_from(file_path, start);
 
+        println!("{}", rfile.serialize());
+        println!("{:?}", rfile.serialize().bytes());
         rat_file.write_all(rfile.serialize().as_bytes())?;
         rat_file.flush()?;
 
