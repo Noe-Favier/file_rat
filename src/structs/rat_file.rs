@@ -3,10 +3,10 @@ use std::{
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
-
 use super::rfile::RFile;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
+use memmap2::{Mmap, MmapMut};
 
 #[allow(dead_code)]
 pub struct RatFile {
@@ -21,10 +21,7 @@ impl RatFile {
             //TODO: check if file is a rat file
             //TODO: read metadata and inject in struct fields
 
-            let rat_file = OpenOptions::new()
-                .write(true)
-                .read(true)
-                .open(path)?;
+            let rat_file = OpenOptions::new().write(true).read(true).open(path)?;
 
             return Ok(RatFile {
                 path: path.clone(),
@@ -105,17 +102,12 @@ impl RatFile {
             let byte_start = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
             let byte_end = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
 
-            let is_dir = file_data.next().unwrap_or("0");
-            let is_file = file_data.next().unwrap_or("0");
-
             file_list.push(RFile::new(
                 file_uuid,
                 file_name.to_string(),
                 byte_start - byte_end,
                 byte_start,
                 byte_end,
-                is_dir == "1",
-                is_file == "1",
             ));
         }
 
@@ -125,17 +117,25 @@ impl RatFile {
     pub fn add_file(&self, file_path: &PathBuf) -> Result<(), Error> {
         let mut rat_file = &self.file;
         let mut file = File::open(file_path)?;
-        let mut buffer = Vec::new();
-
-        let start = rat_file.seek(std::io::SeekFrom::End(0))?; //seek to end of file
-
-        file.read_to_end(&mut buffer)?;
-        println!("{:?}", String::from_utf8((&buffer).to_owned()));
-        rat_file.write_all(&buffer)?;
-        rat_file.flush()?;
-
-        // Seek to the position of the first occurrence of the character '|' where we will start writing the file list
+        let mut buffer: Vec<u8> = Vec::new();
         let mut reader = BufReader::new(rat_file);
+
+        let rat_size = rat_file
+            .metadata()
+            .unwrap_or_else(|err| {
+                panic!("Error getting metadata from file: {}", err);
+            })
+            .len();
+
+        let file_size = file
+            .metadata()
+            .unwrap_or_else(|err| {
+                panic!("Error getting metadata from file: {}", err);
+            })
+            .len();
+
+        let rfile: RFile = RFile::new_from(file_path, rat_size, rat_size + file_size);
+
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to start of file since we were at the end
         let pos = reader
@@ -148,15 +148,19 @@ impl RatFile {
             .position(|b| b.unwrap() == b'|')
             .ok_or(InvalidInput)?;
 
-        //getting to the position of the first occurrence of the character '|'
-        rat_file.seek(SeekFrom::Start((pos+1) as u64))?; //+1 because we don't want to overwrite the | 
-
-        let rfile: RFile = RFile::new_from(file_path, start);
-
+        //write file metadata
         println!("{}", rfile.serialize());
         println!("{:?}", rfile.serialize().bytes());
-        rat_file.write_all(rfile.serialize().as_bytes())?;
-        rat_file.flush()?;
+        
+        let mut mmap = unsafe { MmapMut::map_mut(rat_file)?  };
+        mmap.copy_within(pos.., pos + rfile.serialize().len());
+
+        //write file data
+        rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
+        file.read_to_end(&mut buffer)?; //reading the file to the end and storing it in the buffer
+        println!("{:?}", String::from_utf8((&buffer).to_owned())); 
+        rat_file.write_all(&buffer)?; //writing the buffer to the rat file
+        rat_file.flush()?; //flushing the rat file
 
         Ok(())
     }

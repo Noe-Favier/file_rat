@@ -10,9 +10,6 @@ pub struct RFile {
 
     byte_start: u64,
     byte_end: u64,
-
-    pub is_dir: bool,
-    pub is_file: bool,
 }
 
 #[allow(dead_code)]
@@ -25,27 +22,20 @@ impl RFile {
 
         byte_start: u64,
         byte_end: u64,
-
-        is_dir: bool,
-        is_file: bool,
     ) -> RFile {
         RFile {
             uuid,
             name,
             size,
-            is_dir,
-            is_file,
             byte_start: byte_start,
             byte_end: byte_end,
         }
     }
 
-    pub fn new_from(file_path: &PathBuf, byte_start: u64) -> RFile {
+    pub fn new_from(file_path: &PathBuf, byte_start: u64, byte_end: u64) -> RFile {
         let context = Context::new(rand::random::<u16>());
         let ts = Timestamp::now(context);
         let uuid = Uuid::new_v1(ts, &[1, 2, 3, 4, 5, 6]);
-
-        let file = File::open(&file_path).unwrap();
         RFile::new(
             uuid,
             file_path
@@ -54,11 +44,9 @@ impl RFile {
                 .to_str()
                 .unwrap_or("unamed")
                 .to_string(),
-            file.metadata().unwrap().len(),
+            byte_end - byte_start,
             byte_start,
-            byte_start + file.metadata().unwrap().len(),
-            file.metadata().unwrap().is_dir(),
-            file.metadata().unwrap().is_file(),
+            byte_end,
         )
     }
 
@@ -71,10 +59,6 @@ impl RFile {
         data.push_str(&self.byte_start.to_string());
         data.push_str(",");
         data.push_str(&self.byte_end.to_string());
-        data.push_str(",");
-        data.push_str(if self.is_dir { "1" } else { "0" });
-        data.push_str(",");
-        data.push_str(if self.is_file { "1" } else { "0" });
         data
     }
 }
