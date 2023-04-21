@@ -6,7 +6,7 @@ use std::{
 use super::rfile::RFile;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
-use memmap2::{Mmap, MmapMut};
+use memmap2::{MmapMut};
 
 #[allow(dead_code)]
 pub struct RatFile {
@@ -136,31 +136,25 @@ impl RatFile {
 
         let rfile: RFile = RFile::new_from(file_path, rat_size, rat_size + file_size);
 
-
         rat_file.seek(SeekFrom::Start(0))?; //getting back to start of file since we were at the end
         let pos = reader
             .by_ref()
             .bytes()
-            .inspect(|b| {
-                let x = b.as_ref().unwrap();
-                println!("Read byte: {:?}", String::from_utf8(vec![*x]));
-            })
             .position(|b| b.unwrap() == b'|')
-            .ok_or(InvalidInput)?;
+            .ok_or(InvalidInput)? +1; //+1 because we stop at the | char (and we want to write after it)
 
-        //write file metadata
-        println!("{}", rfile.serialize());
-        println!("{:?}", rfile.serialize().bytes());
-        
+        //write file metadata        
+        rat_file.set_len(rat_size + rfile.serialize().len() as u64)?;
         let mut mmap = unsafe { MmapMut::map_mut(rat_file)?  };
-        mmap.copy_within(pos.., pos + rfile.serialize().len());
+
+        mmap.copy_within(pos..rat_size as usize, pos + rfile.serialize().len()); //moving the file data to the right
+        mmap[pos..pos+rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
+        mmap.flush()?;
 
         //write file data
         rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
         file.read_to_end(&mut buffer)?; //reading the file to the end and storing it in the buffer
-        println!("{:?}", String::from_utf8((&buffer).to_owned())); 
         rat_file.write_all(&buffer)?; //writing the buffer to the rat file
-        rat_file.flush()?; //flushing the rat file
 
         Ok(())
     }
