@@ -3,10 +3,12 @@ use std::{
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
+extern crate base64;
 use super::rfile::RFile;
+use base64::{engine::general_purpose, Engine as _};
+use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
-use memmap2::{MmapMut};
 
 #[allow(dead_code)]
 pub struct RatFile {
@@ -141,20 +143,32 @@ impl RatFile {
             .by_ref()
             .bytes()
             .position(|b| b.unwrap() == b'|')
-            .ok_or(InvalidInput)? +1; //+1 because we stop at the | char (and we want to write after it)
+            .ok_or(InvalidInput)?
+            + 1; //+1 because we stop at the | char (and we want to write after it)
 
-        //write file metadata        
+        //write file metadata
         rat_file.set_len(rat_size + rfile.serialize().len() as u64)?;
-        let mut mmap = unsafe { MmapMut::map_mut(rat_file)?  };
+        let mut mmap = unsafe { MmapMut::map_mut(rat_file)? };
 
         mmap.copy_within(pos..rat_size as usize, pos + rfile.serialize().len()); //moving the file data to the right
-        mmap[pos..pos+rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
+        mmap[pos..pos + rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
         mmap.flush()?;
 
         //write file data
         rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
         file.read_to_end(&mut buffer)?; //reading the file to the end and storing it in the buffer
-        rat_file.write_all(&buffer)?; //writing the buffer to the rat file
+
+        //encode buffer to b64
+        let mut encoded_buffer = Vec::new();
+        encoded_buffer.resize(buffer.len() * 4 / 3 + 4, 0);
+        
+        let bytes_written = general_purpose::STANDARD
+            .encode_slice(buffer, &mut encoded_buffer)
+            .unwrap();
+        
+        encoded_buffer.truncate(bytes_written); // shorten our vec down to just what was written
+
+        rat_file.write_all(&encoded_buffer)?; //writing the buffer to the rat file
 
         Ok(())
     }
