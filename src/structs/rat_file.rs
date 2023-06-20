@@ -2,6 +2,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    usize,
 };
 extern crate base64;
 use super::rfile::RFile;
@@ -13,7 +14,7 @@ use uuid::Uuid;
 #[allow(dead_code)]
 pub struct RatFile {
     path: PathBuf,
-    file: File,
+    pub file: File,
 }
 
 #[allow(dead_code)]
@@ -102,14 +103,13 @@ impl RatFile {
             let file_name = file_data.next().unwrap_or("unamed");
 
             let byte_start = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
-            let byte_end = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
+            let size = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
 
             file_list.push(RFile::new(
                 file_uuid,
                 file_name.to_string(),
-                byte_start - byte_end,
                 byte_start,
-                byte_end,
+                size,
             ));
         }
 
@@ -129,14 +129,7 @@ impl RatFile {
             })
             .len();
 
-        let file_size = file
-            .metadata()
-            .unwrap_or_else(|err| {
-                panic!("Error getting metadata from file: {}", err);
-            })
-            .len();
-
-        let rfile: RFile = RFile::new_from(file_path, rat_size, rat_size + file_size);
+        let rfile: RFile = RFile::new_from(file_path, self);
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to start of file since we were at the end
         let pos = reader
@@ -161,11 +154,11 @@ impl RatFile {
         //encode buffer to b64
         let mut encoded_buffer = Vec::new();
         encoded_buffer.resize(buffer.len() * 4 / 3 + 4, 0);
-        
+
         let bytes_written = general_purpose::STANDARD
             .encode_slice(buffer, &mut encoded_buffer)
             .unwrap();
-        
+
         encoded_buffer.truncate(bytes_written); // shorten our vec down to just what was written
 
         rat_file.write_all(&encoded_buffer)?; //writing the buffer to the rat file
