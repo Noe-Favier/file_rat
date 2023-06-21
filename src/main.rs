@@ -19,4 +19,5 @@ fn main() {
 
     let helloworld_path = PathBuf::from("./helloworld.txt");
     file.add_file(&helloworld_path).expect("Failed to add file");
+    println!("files : {:?}", file.get_file_list().unwrap());
 }

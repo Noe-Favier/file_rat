@@ -9,7 +9,6 @@ use super::rfile::RFile;
 use base64::{engine::general_purpose, Engine as _};
 use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
-use uuid::Uuid;
 
 #[allow(dead_code)]
 pub struct RatFile {
@@ -94,29 +93,20 @@ impl RatFile {
         }
 
         let file_list_data = String::from_utf8(file_list_data).unwrap_or(String::new());
-
         for file in file_list_data.split(';') {
-            let mut file_data = file.split(',');
-            //-----
-
-            let file_uuid = Uuid::parse_str(file_data.next().unwrap()).unwrap();
-            let file_name = file_data.next().unwrap_or("unamed");
-
-            let byte_start = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
-            let size = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
-
-            file_list.push(RFile::new(
-                file_uuid,
-                file_name.to_string(),
-                byte_start,
-                size,
-            ));
+            if file == "" {
+                //the last file is empty, because metadata ends with a ;
+                continue;
+            }
+            file_list.push(
+                RFile::deserialize(file.to_string())
+            );
         }
 
         Ok(file_list)
     }
 
-    pub fn add_file(&self, file_path: &PathBuf) -> Result<(), Error> {
+    pub fn add_file(&self, file_path: &PathBuf) -> Result<RatFile, Error> {
         let mut rat_file = &self.file;
         let mut file = File::open(file_path)?;
         let mut buffer: Vec<u8> = Vec::new();
@@ -163,7 +153,9 @@ impl RatFile {
 
         rat_file.write_all(&encoded_buffer)?; //writing the buffer to the rat file
 
-        Ok(())
+        rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
+        
+        Ok(self.clone())
     }
 }
 
@@ -176,5 +168,14 @@ impl std::fmt::Display for RatFile {
 impl std::fmt::Debug for RatFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RatFile {{ path: {} }}", self.path.display())
+    }
+}
+
+impl std::clone::Clone for RatFile {
+    fn clone(&self) -> Self {
+        RatFile {
+            path: self.path.clone(),
+            file: self.file.try_clone().unwrap(),
+        }
     }
 }

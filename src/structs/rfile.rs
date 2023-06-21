@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, path::PathBuf, fmt::{Debug, Display}};
 
 use uuid::{Context, Timestamp, Uuid};
 
@@ -76,8 +76,43 @@ impl RFile {
         data
     }
 
+    pub fn deserialize(serialized_rfile: String) -> RFile {
+        
+            let mut file_data = serialized_rfile.split(',');
+            //-----
+
+            let file_uuid = Uuid::parse_str(file_data.next().unwrap()).unwrap();
+            let file_name = file_data.next().unwrap_or("unamed");
+            let byte_start = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
+            let size = file_data.next().unwrap_or("0").parse::<u64>().unwrap();
+
+            RFile::new(
+                file_uuid,
+                file_name.to_string(),
+                byte_start,
+                size,
+            )
+    }
+
     fn get_size_in_b64(original_size: u64) -> u64 {
         let x: f64 = f64::ceil(original_size as f64 / 3.0);
         (x * 4.0) as u64
+    }
+}
+
+impl Debug for RFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RFile")
+            .field("uuid", &self.uuid)
+            .field("size", &self.size)
+            .field("name", &self.name)
+            .field("byte_start", &self.byte_start)
+            .finish()
+    }
+}
+
+impl Display for RFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
     }
 }
