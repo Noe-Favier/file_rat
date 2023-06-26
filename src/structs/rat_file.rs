@@ -9,6 +9,10 @@ use super::rfile::RFile;
 use base64::{engine::general_purpose, Engine as _};
 use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
+use uuid::Uuid;
+
+//create a buffer of 1000 byte
+const BUFFER_SIZE: usize = 12000;
 
 #[allow(dead_code)]
 pub struct RatFile {
@@ -98,18 +102,15 @@ impl RatFile {
                 //the last file is empty, because metadata ends with a ;
                 continue;
             }
-            file_list.push(
-                RFile::deserialize(file.to_string())
-            );
+            file_list.push(RFile::deserialize(file.to_string()));
         }
 
         Ok(file_list)
     }
 
-    pub fn add_file(&self, file_path: &PathBuf) -> Result<RatFile, Error> {
+    pub fn add_file(&self, file_path: &PathBuf) -> Result<(), Error> {
         let mut rat_file = &self.file;
         let mut file = File::open(file_path)?;
-        let mut buffer: Vec<u8> = Vec::new();
         let mut reader = BufReader::new(rat_file);
 
         let rat_size = rat_file
@@ -139,23 +140,41 @@ impl RatFile {
 
         //write file data
         rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
-        file.read_to_end(&mut buffer)?; //reading the file to the end and storing it in the buffer
 
-        //encode buffer to b64
-        let mut encoded_buffer = Vec::new();
-        encoded_buffer.resize(buffer.len() * 4 / 3 + 4, 0);
+        let mut buffer = [0; BUFFER_SIZE];
+        loop {
+            let bytes_read = file.read(&mut buffer)?;
+            if bytes_read == 0 {
+                break;
+            }
+            let mut encoded_buffer = Vec::new();
+            encoded_buffer.resize(RFile::get_size_in_b64(BUFFER_SIZE as u64) as usize, 0);
 
-        let bytes_written = general_purpose::STANDARD
-            .encode_slice(buffer, &mut encoded_buffer)
-            .unwrap();
 
-        encoded_buffer.truncate(bytes_written); // shorten our vec down to just what was written
+            let encoded_offset: usize = RFile::get_size_in_b64(bytes_read as u64) as usize;
 
-        rat_file.write_all(&encoded_buffer)?; //writing the buffer to the rat file
+            let bytes_written = general_purpose::STANDARD
+                .encode_slice(buffer, &mut encoded_buffer)
+                .unwrap();
+
+            rat_file.write_all(&encoded_buffer[0..encoded_offset])?; //writing the buffer to the rat file
+        }
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
+
+        Ok(())
+    }
+
+    pub fn extract_file(&self, uuid: Uuid) {
+        let rfiles: Vec<RFile> = self.get_file_list().unwrap();
+        let file: RFile = rfiles
+            .iter()
+            .find(|&rfile| rfile.uuid == uuid)
+            .expect(format!("File with uuid {} not found", uuid).as_str())
+            .clone();
+
+        println!("Extracting file: {}", file.name);
         
-        Ok(self.clone())
     }
 }
 

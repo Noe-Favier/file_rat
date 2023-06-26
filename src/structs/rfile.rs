@@ -94,7 +94,7 @@ impl RFile {
             )
     }
 
-    fn get_size_in_b64(original_size: u64) -> u64 {
+    pub(crate) fn get_size_in_b64(original_size: u64) -> u64 {
         let x: f64 = f64::ceil(original_size as f64 / 3.0);
         (x * 4.0) as u64
     }
@@ -114,5 +114,11 @@ impl Debug for RFile {
 impl Display for RFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.name)
+    }
+}
+
+impl Clone for RFile {
+    fn clone(&self) -> Self {
+        RFile::new(self.uuid, self.name.clone(), self.size, self.byte_start)
     }
 }
