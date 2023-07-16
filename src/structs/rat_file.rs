@@ -78,9 +78,10 @@ impl RatFile {
 #[allow(dead_code)]
 impl RatFile {
     pub fn get_file_list(&self) -> Result<Vec<RFile>, Error> {
+        let mut rat_file = &self.file;
         let mut file_list: Vec<RFile> = Vec::new();
 
-        let reader = BufReader::new(&self.file);
+        let reader = BufReader::new(rat_file);
         let mut gather_flag = false;
         let mut file_list_data: Vec<u8> = Vec::new();
         for byte in reader.bytes() {
@@ -105,6 +106,7 @@ impl RatFile {
             file_list.push(RFile::deserialize(file.to_string()));
         }
 
+        rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
         Ok(file_list)
     }
 
