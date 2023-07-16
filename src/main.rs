@@ -17,7 +17,16 @@ fn main() {
     let file = RatFile::new_from(&path).unwrap();
     println!("File opened at: {}", file.path().to_str().unwrap());
 
-    let helloworld_path = PathBuf::from("./helloworld.txt");
-    file.add_file(&helloworld_path).expect("Failed to add file");
+    for i in 1..3 + 1 {
+        let path = PathBuf::from(format!("./{}.txt", i));
+        file.add_file(&path).expect("Failed to add file");
+    }
+
     println!("files : {:?}", file.get_file_list().unwrap());
+
+    file.extract_file(
+        uuid::Uuid::parse_str("894ceb57-2415-11ee-bddd-010203040506").expect("cant parse uuid"),
+        PathBuf::from("./result.txt"),
+    )
+    .expect("Failed to extract file");
 }

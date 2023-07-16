@@ -1,12 +1,12 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{create_dir_all, File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     usize,
 };
 extern crate base64;
 use super::rfile::RFile;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{engine::general_purpose, Engine as _, decoded_len_estimate, encoded_len};
 use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
@@ -149,25 +149,17 @@ impl RatFile {
             if bytes_read == 0 {
                 break;
             }
-            let mut encoded_buffer = Vec::new();
-            encoded_buffer.resize(RFile::get_size_in_b64(BUFFER_SIZE as u64) as usize, 0);
 
-
-            let encoded_offset: usize = RFile::get_size_in_b64(bytes_read as u64) as usize;
-
-            let bytes_written = general_purpose::STANDARD
-                .encode_slice(buffer, &mut encoded_buffer)
-                .unwrap();
-
-            rat_file.write_all(&encoded_buffer[0..encoded_offset])?; //writing the buffer to the rat file
+            rat_file.write_all(&buffer[0..bytes_read])?; //writing the buffer to the rat file
         }
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
-
         Ok(())
     }
 
-    pub fn extract_file(&self, uuid: Uuid) {
+    pub fn extract_file(&self, uuid: Uuid, dest: PathBuf) -> Result<(), Error> {
+        let mut rat_file = &self.file;
+
         let rfiles: Vec<RFile> = self.get_file_list().unwrap();
         let file: RFile = rfiles
             .iter()
@@ -176,7 +168,32 @@ impl RatFile {
             .clone();
 
         println!("Extracting file: {}", file.name);
-        
+        println!(
+            "searching for strings over {} -> {}",
+            file.byte_start, file.size
+        );
+
+        rat_file.seek(SeekFrom::Start(file.byte_start)).unwrap();
+
+        let mut destination = File::create(dest)?;
+
+        let mut buffer = [0; BUFFER_SIZE];
+        let mut remaining_bytes = file.size;
+
+        while remaining_bytes > 0 {
+            let bytes_to_read = std::cmp::min(buffer.len() as u64, remaining_bytes) as usize;
+            let bytes_read = rat_file.read(&mut buffer[0..bytes_to_read])?;
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            destination.write_all(&buffer)?;
+
+            remaining_bytes -= bytes_read as u64;
+        }
+
+        Ok(())
     }
 }
 

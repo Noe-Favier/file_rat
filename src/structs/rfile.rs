@@ -1,5 +1,6 @@
 use std::{ffi::OsStr, path::PathBuf, fmt::{Debug, Display}};
 
+use base64::encoded_len;
 use uuid::{Context, Timestamp, Uuid};
 
 use super::rat_file::RatFile;
@@ -10,7 +11,7 @@ pub struct RFile {
     pub size: u64,
     pub name: String,
 
-    byte_start: u64,
+    pub(crate) byte_start: u64,
 }
 
 #[allow(dead_code)]
@@ -19,8 +20,8 @@ impl RFile {
         RFile {
             uuid,
             name,
-            byte_start,
             size,
+            byte_start,
         }
     }
 
@@ -42,19 +43,19 @@ impl RFile {
             - the size of the rat file
             - the size of the uuid
             - the size of the name
-            - the size of the size (b64)
+            - the size of the size
             - 3 commas (separating metadata)
         */
         let metadata_size = 36 //uuid
         + name.len() as u64 //name
-        + RFile::get_size_in_b64(size).to_string().len() as u64 //size (b64)
+        + size.to_string().len() as u64 //size
         + 3 //commas
         + 1 //metadata_separator (;)
         + 1 //offset 
         ;
         
         let mut byte_start = rat_file.file.metadata().unwrap().len() + metadata_size;
-        byte_start = byte_start + byte_start.to_string().len() as u64; //add the size of the byte start (b64)
+        byte_start = byte_start + byte_start.to_string().len() as u64; //add the size of the byte start
         
         RFile::new(uuid, name, size, byte_start)
     }
@@ -71,7 +72,7 @@ impl RFile {
         data.push_str(",");
         data.push_str(&self.byte_start.to_string());
         data.push_str(",");
-        data.push_str(RFile::get_size_in_b64(self.size).to_string().as_str()); //size (b64)
+        data.push_str(self.size.to_string().as_str());
         data.push_str(";");
         data
     }
@@ -89,14 +90,9 @@ impl RFile {
             RFile::new(
                 file_uuid,
                 file_name.to_string(),
-                byte_start,
                 size,
+                byte_start,
             )
-    }
-
-    pub(crate) fn get_size_in_b64(original_size: u64) -> u64 {
-        let x: f64 = f64::ceil(original_size as f64 / 3.0);
-        (x * 4.0) as u64
     }
 }
 
