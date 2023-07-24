@@ -114,6 +114,7 @@ impl RatFile {
         let mut rat_file = &self.file;
         let mut file = File::open(file_path)?;
         let mut reader = BufReader::new(rat_file);
+        let mut total_byte_written = 0;
 
         let rat_size = rat_file
             .metadata()
@@ -139,6 +140,7 @@ impl RatFile {
         mmap.copy_within(pos..rat_size as usize, pos + rfile.serialize().len()); //moving the file data to the right
         mmap[pos..pos + rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
         mmap.flush()?;
+        total_byte_written += rfile.serialize().len(); //updating the total byte written
 
         //write file data
         rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
@@ -150,7 +152,12 @@ impl RatFile {
                 break;
             }
 
-            rat_file.write_all(&buffer[0..bytes_read])?; //writing the buffer to the rat file
+            rat_file.write_all(&buffer[0..bytes_read]).and_then(
+                |_| {
+                    total_byte_written += bytes_read; //updating the total byte written
+                    Ok(())
+                },
+            )?; //writing the buffer to the rat file
         }
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
@@ -194,6 +201,11 @@ impl RatFile {
             remaining_bytes -= bytes_read as u64;
         }
 
+        Ok(())
+    }
+
+    pub fn update_files_index(&self, uuid: Uuid, amount: usize, positive: bool) -> Result<(), Error> {
+        //Recursively increment if positive, decrement if negative
         Ok(())
     }
 }
