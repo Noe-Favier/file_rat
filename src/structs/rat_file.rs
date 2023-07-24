@@ -160,6 +160,7 @@ impl RatFile {
     pub fn extract_file(&self, uuid: Uuid, dest: PathBuf) -> Result<(), Error> {
         let mut rat_file = &self.file;
 
+        //TODO: extract this in another method 
         let rfiles: Vec<RFile> = self.get_file_list().unwrap();
         let file: RFile = rfiles
             .iter()
@@ -173,10 +174,10 @@ impl RatFile {
             file.byte_start, file.size
         );
 
-        rat_file.seek(SeekFrom::Start(file.byte_start)).unwrap();
+        rat_file.seek(SeekFrom::Start(file.byte_start - 1)).unwrap();
 
         let mut destination = File::create(dest)?;
-
+        destination.set_len(file.size)?;
         let mut buffer = [0; BUFFER_SIZE];
         let mut remaining_bytes = file.size;
 
@@ -188,7 +189,7 @@ impl RatFile {
                 break;
             }
 
-            destination.write_all(&buffer)?;
+            destination.write_all(&buffer[0..bytes_read])?;
 
             remaining_bytes -= bytes_read as u64;
         }
