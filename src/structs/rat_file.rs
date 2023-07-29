@@ -78,6 +78,7 @@ impl RatFile {
 #[allow(dead_code)]
 impl RatFile {
     pub fn get_file_list(&self) -> Result<Vec<RFile>, Error> {
+        //TODO: wtf optimize this !!!
         let mut rat_file = &self.file;
         let mut file_list: Vec<RFile> = Vec::new();
 
@@ -166,20 +167,7 @@ impl RatFile {
 
     pub fn extract_file(&self, uuid: Uuid, dest: PathBuf) -> Result<(), Error> {
         let mut rat_file = &self.file;
-
-        //TODO: extract this in another method 
-        let rfiles: Vec<RFile> = self.get_file_list().unwrap();
-        let file: RFile = rfiles
-            .iter()
-            .find(|&rfile| rfile.uuid == uuid)
-            .expect(format!("File with uuid {} not found", uuid).as_str())
-            .clone();
-
-        println!("Extracting file: {}", file.name);
-        println!(
-            "searching for strings over {} -> {}",
-            file.byte_start, file.size
-        );
+        let file = self.get_rfile_by_uuid(uuid)?;
 
         rat_file.seek(SeekFrom::Start(file.byte_start - 1)).unwrap();
 
@@ -201,12 +189,47 @@ impl RatFile {
             remaining_bytes -= bytes_read as u64;
         }
 
+        rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
         Ok(())
     }
 
-    pub fn update_files_index(&self, uuid: Uuid, amount: usize, positive: bool) -> Result<(), Error> {
+    pub fn update_files_index(&self, mut amount: usize, positive: bool) -> Result<(), Error> {
         //Recursively increment if positive, decrement if negative
+
+        let mut rat_file = &self.file;
+        let rfiles: Vec<RFile> = self.get_file_list().unwrap();
+
+        for mut f in rfiles {
+            let old_meta: String = f.serialize();
+            let new_meta: String = f.update_index(amount, positive);
+            if new_meta.len() > old_meta.len() {
+                self.update_files_index(new_meta.len() - old_meta.len(), true)?;
+            }else if new_meta.len() < old_meta.len() {
+                self.update_files_index(old_meta.len() - new_meta.len(), false)?;
+            }
+
+            //TODO: WRITE CHANGES
+        }
+
         Ok(())
+    }
+
+    pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> u64 {
+        //TODO:
+        return uuid.to_string().len() as u64; 
+    }
+
+    pub fn get_rfile_by_uuid(&self, uuid: Uuid) -> Result<RFile, Error> {
+        let rfiles: Vec<RFile> = self.get_file_list().unwrap();
+        let file: RFile = rfiles
+            .iter()
+            .find(|&rfile| rfile.uuid == uuid)
+            .expect(format!("File with uuid {} not found", uuid).as_str())
+            .clone();
+
+        println!("Found : {}", file.name);
+
+        Ok(file)
     }
 }
 
