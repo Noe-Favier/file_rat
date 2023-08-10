@@ -214,12 +214,33 @@ impl RatFile {
         Ok(())
     }
 
-    pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> u64 {
-        //TODO:
-        return uuid.to_string().len() as u64; 
+    pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> Result<u64, Error> {
+        let mut rat_file = &self.file;
+
+        let mut uuid_buffer = [0; 36];
+
+        let found_flag: bool = false;
+
+        rat_file.seek(SeekFrom::Start(0)).unwrap();
+        
+        let mut char_buffer = [0; 1];
+        while !found_flag && (rat_file.stream_position()? < rat_file.metadata()?.len())  {
+            rat_file.read(&mut char_buffer)?;
+            if (char_buffer[0] == b';') || (char_buffer[0] == b'|') {
+                rat_file.read(&mut uuid_buffer)?;
+                let file_uuid = Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
+                if file_uuid == uuid {
+                    return Ok(rat_file.stream_position().unwrap() - 37);
+            }
+                
+            }
+        }
+
+        return Err(Error::new(ErrorKind::NotFound, "File not found")); 
     }
 
     pub fn get_rfile_by_uuid(&self, uuid: Uuid) -> Result<RFile, Error> {
+        //TODO: test & finish this
         let rfiles: Vec<RFile> = self.get_file_list().unwrap();
         let file: RFile = rfiles
             .iter()
