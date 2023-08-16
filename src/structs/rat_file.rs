@@ -6,7 +6,7 @@ use std::{
 };
 extern crate base64;
 use super::rfile::RFile;
-use base64::{engine::general_purpose, Engine as _, decoded_len_estimate, encoded_len};
+use base64::{decoded_len_estimate, encoded_len, engine::general_purpose, Engine as _};
 use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
@@ -153,12 +153,10 @@ impl RatFile {
                 break;
             }
 
-            rat_file.write_all(&buffer[0..bytes_read]).and_then(
-                |_| {
-                    total_byte_written += bytes_read; //updating the total byte written
-                    Ok(())
-                },
-            )?; //writing the buffer to the rat file
+            rat_file.write_all(&buffer[0..bytes_read]).and_then(|_| {
+                total_byte_written += bytes_read; //updating the total byte written
+                Ok(())
+            })?; //writing the buffer to the rat file
         }
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
@@ -204,7 +202,7 @@ impl RatFile {
             let new_meta: String = f.update_index(amount, positive);
             if new_meta.len() > old_meta.len() {
                 self.update_files_index(new_meta.len() - old_meta.len(), true)?;
-            }else if new_meta.len() < old_meta.len() {
+            } else if new_meta.len() < old_meta.len() {
                 self.update_files_index(old_meta.len() - new_meta.len(), false)?;
             }
 
@@ -215,32 +213,41 @@ impl RatFile {
     }
 
     pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> Result<u64, Error> {
+        //precond: file is a rat file
         let mut rat_file = &self.file;
-
         let mut uuid_buffer = [0; 36];
-
-        let found_flag: bool = false;
-
-        rat_file.seek(SeekFrom::Start(0)).unwrap();
-        
+        let mut pipe_found_flag: bool = false;
         let mut char_buffer = [0; 1];
-        while !found_flag && (rat_file.stream_position()? < rat_file.metadata()?.len())  {
+        rat_file.seek(SeekFrom::Start(0)).unwrap();
+
+        loop {
             rat_file.read(&mut char_buffer)?;
-            if (char_buffer[0] == b';') || (char_buffer[0] == b'|') {
+            if char_buffer[0] == b'|' {
+                //start of metadata detected
+                pipe_found_flag = true;
+                continue;
+            }
+            if pipe_found_flag && (char_buffer[0] == b';') {
+                
+                rat_file.read(&mut char_buffer)?;
+                if char_buffer[0] == b'/' {
+                    //end of metadata detected
+                    return Err(Error::new(ErrorKind::NotFound, "UUID not found"));
+                } else {
+                    rat_file.seek(SeekFrom::Current(-1))?;
+                }
+
                 rat_file.read(&mut uuid_buffer)?;
-                let file_uuid = Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
+                let file_uuid =
+                    Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
                 if file_uuid == uuid {
                     return Ok(rat_file.stream_position().unwrap() - 37);
-            }
-                
+                }
             }
         }
-
-        return Err(Error::new(ErrorKind::NotFound, "File not found")); 
     }
 
     pub fn get_rfile_by_uuid(&self, uuid: Uuid) -> Result<RFile, Error> {
-        //TODO: test & finish this
         let rfiles: Vec<RFile> = self.get_file_list().unwrap();
         let file: RFile = rfiles
             .iter()
