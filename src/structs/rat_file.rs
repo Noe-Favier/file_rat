@@ -1,4 +1,6 @@
+//TODO: removed useless seeks at end of each fn
 use std::{
+    borrow::BorrowMut,
     fs::{create_dir_all, File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -77,8 +79,30 @@ impl RatFile {
 
 #[allow(dead_code)]
 impl RatFile {
+    pub fn get_file_list_until(&self, uuid: Uuid) -> Result<Vec<RFile>, Error> {
+        return self.get_file_list().map(|file_list| {
+            let mut new_file_list: Vec<RFile> = Vec::new();
+            for file in file_list {
+                if file.uuid == uuid {
+                    break;
+                }
+                new_file_list.push(file);
+            }
+            new_file_list
+        });
+    }
+
     pub fn get_file_list(&self) -> Result<Vec<RFile>, Error> {
         //TODO: wtf optimize this !!!
+
+        /*
+        algo idea:
+            for each time we find a ';' : gather metadata with a readUntil in a Vector of u8
+            then deserialize the metadata.
+
+            cf. find_metadata_start_by_uuid()
+        */
+
         let mut rat_file = &self.file;
         let mut file_list: Vec<RFile> = Vec::new();
 
@@ -112,11 +136,14 @@ impl RatFile {
     }
 
     pub fn add_file(&self, file_path: &PathBuf) -> Result<(), Error> {
+        //region variables
         let mut rat_file = &self.file;
         let mut file = File::open(file_path)?;
         let mut reader = BufReader::new(rat_file);
         let mut total_byte_written = 0;
+        //endregion variables
 
+        //region metadata_writing
         let rat_size = rat_file
             .metadata()
             .unwrap_or_else(|err| {
@@ -142,6 +169,11 @@ impl RatFile {
         mmap[pos..pos + rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
         mmap.flush()?;
         total_byte_written += rfile.serialize().len(); //updating the total byte written
+                                                       //endregion metadata_writing
+
+        //region metadata re-indexing to predecessors
+        self.update_predecessors_metadata_indexes(rfile.uuid, total_byte_written, true)?;
+        //endregion metadata re-indexing to predecessors
 
         //write file data
         rat_file.seek(SeekFrom::End(0))?; //getting back to the end of the rat file
@@ -160,6 +192,55 @@ impl RatFile {
         }
 
         rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
+        Ok(())
+    }
+
+    fn update_predecessors_metadata_indexes(
+        &self,
+        uuid: Uuid,
+        amount: usize,
+        positive: bool,
+    ) -> Result<(), Error> {
+        //Recursively increment if positive, decrement if negative
+
+        let mut rat_file: &File = &self.file;
+        let rat_file_len = rat_file.metadata()?.len();
+        let rfiles: Vec<RFile> = self.get_file_list_until(uuid).unwrap();
+
+        for mut f in rfiles {
+            let old_meta: String = f.serialize();
+            let new_meta: String = f.update_index(amount, positive);
+            let mut size_changed_flag: bool = true;
+            //if those changes have generated a new metadata size, we need to update the byte start of the predecessors again
+            //TODO: condition not that pretty but it works
+            if new_meta.len() > old_meta.len() {
+                self.update_predecessors_metadata_indexes(
+                    f.uuid,
+                    new_meta.len() - old_meta.len(),
+                    true,
+                )?;
+                rat_file.set_len(rat_file_len + (new_meta.len() - old_meta.len()) as u64)?;
+            } else if new_meta.len() < old_meta.len() {
+                self.update_predecessors_metadata_indexes(
+                    f.uuid,
+                    old_meta.len() - new_meta.len(),
+                    false,
+                )?;
+                rat_file.set_len(rat_file_len + (old_meta.len() - new_meta.len()) as u64)?;
+            }else{
+                size_changed_flag = false;
+            }
+
+            //TODO: WRITE CHANGES
+            let mut mmap = unsafe { MmapMut::map_mut(rat_file)? };
+            let pos: usize = self.find_metadata_start_by_uuid(f.uuid)? as usize;
+            if size_changed_flag {
+                mmap.copy_within((pos + old_meta.len())..rat_file_len as usize, pos + new_meta.len()); //moving the next metadata to the right
+            }
+            mmap[pos..pos + new_meta.len()].copy_from_slice(new_meta.as_bytes()); //writing the file metadata between
+            mmap.flush()?;
+        }
+
         Ok(())
     }
 
@@ -191,27 +272,6 @@ impl RatFile {
         Ok(())
     }
 
-    pub fn update_files_index(&self, mut amount: usize, positive: bool) -> Result<(), Error> {
-        //Recursively increment if positive, decrement if negative
-
-        let mut rat_file = &self.file;
-        let rfiles: Vec<RFile> = self.get_file_list().unwrap();
-
-        for mut f in rfiles {
-            let old_meta: String = f.serialize();
-            let new_meta: String = f.update_index(amount, positive);
-            if new_meta.len() > old_meta.len() {
-                self.update_files_index(new_meta.len() - old_meta.len(), true)?;
-            } else if new_meta.len() < old_meta.len() {
-                self.update_files_index(old_meta.len() - new_meta.len(), false)?;
-            }
-
-            //TODO: WRITE CHANGES
-        }
-
-        Ok(())
-    }
-
     pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> Result<u64, Error> {
         //precond: file is a rat file
         let mut rat_file = &self.file;
@@ -228,7 +288,6 @@ impl RatFile {
                 continue;
             }
             if pipe_found_flag && (char_buffer[0] == b';') {
-                
                 rat_file.read(&mut char_buffer)?;
                 if char_buffer[0] == b'/' {
                     //end of metadata detected
