@@ -1,6 +1,7 @@
 //TODO: removed useless seeks at end of each fn
 use std::{
     borrow::BorrowMut,
+    char,
     fs::{create_dir_all, File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -93,45 +94,40 @@ impl RatFile {
     }
 
     pub fn get_file_list(&self) -> Result<Vec<RFile>, Error> {
-        //TODO: wtf optimize this !!!
-
-        /*
-        algo idea:
-            for each time we find a ';' : gather metadata with a readUntil in a Vector of u8
-            then deserialize the metadata.
-
-            cf. find_metadata_start_by_uuid()
-        */
-
+        let mut byte_read: usize = 0;
+        let mut char_buffer: [u8; 1] = [0; 1];
         let mut rat_file = &self.file;
         let mut file_list: Vec<RFile> = Vec::new();
+        let mut metadata_buffer: Vec<u8> = Vec::new();
 
-        let reader = BufReader::new(rat_file);
-        let mut gather_flag = false;
-        let mut file_list_data: Vec<u8> = Vec::new();
-        for byte in reader.bytes() {
-            let b = byte?;
-            if b == b'|' {
-                //we are getting to file list, we start gathering file list
-                gather_flag = true;
-            } else if b == b'/' {
-                //we are getting to file data, we finished gathering file list
+        rat_file.flush()?; //flushing the file to be sure changes are written
+        rat_file.seek(SeekFrom::Start(0))?; //getting back to start of file
+
+        loop {
+            //start of metadata detected
+            byte_read = rat_file.read(&mut char_buffer)?;
+            print!("{}", char_buffer[0] as char);
+            if char_buffer[0] == b'|' {break;}
+            else if byte_read == 0 {Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"))?;}
+        }
+        loop {
+            byte_read = rat_file.read(&mut char_buffer)?;
+            print!("{}", char_buffer[0] as char);
+            if byte_read == 0 {Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"))?;}
+
+            if char_buffer[0] == b';' {
+                //end of metadata detected
+                let metadata: String = String::from_utf8(metadata_buffer.clone()).unwrap();
+                let rfile: RFile = RFile::deserialize(metadata);
+                file_list.push(rfile);
+                metadata_buffer.clear();
+            } else if char_buffer[0] == b'/' {
                 break;
-            } else if gather_flag {
-                file_list_data.push(b);
+            } else {
+                metadata_buffer.push(char_buffer[0]);
             }
         }
 
-        let file_list_data = String::from_utf8(file_list_data).unwrap_or(String::new());
-        for file in file_list_data.split(';') {
-            if file == "" {
-                //the last file is empty, because metadata ends with a ;
-                continue;
-            }
-            file_list.push(RFile::deserialize(file.to_string()));
-        }
-
-        rat_file.seek(SeekFrom::Start(0))?; //getting back to the start of the rat file to let the other functions work
         Ok(file_list)
     }
 
@@ -157,9 +153,9 @@ impl RatFile {
         let pos = reader
             .by_ref()
             .bytes()
-            .position(|b| b.unwrap() == b'|')
+            .position(|b| b.unwrap() == b'/')
             .ok_or(InvalidInput)?
-            + 1; //+1 because we stop at the | char (and we want to write after it)
+            + 0; //+1 because we stop at the | char (and we want to write after it)
 
         //write file metadata
         rat_file.set_len(rat_size + rfile.serialize().len() as u64)?;
@@ -172,6 +168,7 @@ impl RatFile {
                                                        //endregion metadata_writing
 
         //region metadata re-indexing to predecessors
+        rat_file.flush()?;
         self.update_predecessors_metadata_indexes(rfile.uuid, total_byte_written, true)?;
         //endregion metadata re-indexing to predecessors
 
@@ -195,7 +192,7 @@ impl RatFile {
         Ok(())
     }
 
-    fn update_predecessors_metadata_indexes(
+    fn update_predecessors_metadata_indexes( //fixme: this function is not working properly (bad writing location + amount calculation)
         &self,
         uuid: Uuid,
         amount: usize,
@@ -203,11 +200,16 @@ impl RatFile {
     ) -> Result<(), Error> {
         //Recursively increment if positive, decrement if negative
 
-        let mut rat_file: &File = &self.file;
+        let rat_file: &File = &self.file;
         let rat_file_len = rat_file.metadata()?.len();
         let rfiles: Vec<RFile> = self.get_file_list_until(uuid).unwrap();
-
+        println!("Updating metadata indexes of {} files", rfiles.len());
         for mut f in rfiles {
+            println!(
+                "Updating metadata of {} with positive {} and amount of {}",
+                f.name, positive, amount
+            );
+            let pos: usize = self.find_metadata_start_by_uuid(f.uuid)? as usize;
             let old_meta: String = f.serialize();
             let new_meta: String = f.update_index(amount, positive);
             let mut size_changed_flag: bool = true;
@@ -227,15 +229,17 @@ impl RatFile {
                     false,
                 )?;
                 rat_file.set_len(rat_file_len + (old_meta.len() - new_meta.len()) as u64)?;
-            }else{
+            } else {
                 size_changed_flag = false;
             }
 
             //TODO: WRITE CHANGES
             let mut mmap = unsafe { MmapMut::map_mut(rat_file)? };
-            let pos: usize = self.find_metadata_start_by_uuid(f.uuid)? as usize;
             if size_changed_flag {
-                mmap.copy_within((pos + old_meta.len())..rat_file_len as usize, pos + new_meta.len()); //moving the next metadata to the right
+                mmap.copy_within(
+                    (pos + old_meta.len())..rat_file_len as usize,
+                    pos + new_meta.len(),
+                ); //moving the next metadata to the right
             }
             mmap[pos..pos + new_meta.len()].copy_from_slice(new_meta.as_bytes()); //writing the file metadata between
             mmap.flush()?;
@@ -272,7 +276,7 @@ impl RatFile {
         Ok(())
     }
 
-    pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> Result<u64, Error> {
+    pub fn find_metadata_start_by_uuid(&self, uuid: Uuid) -> Result<u64, Error> { //TODO: EOF @see get_files_list
         //precond: file is a rat file
         let mut rat_file = &self.file;
         let mut uuid_buffer = [0; 36];
@@ -282,16 +286,26 @@ impl RatFile {
 
         loop {
             rat_file.read(&mut char_buffer)?;
+            print!("{}", char_buffer[0] as char);
             if char_buffer[0] == b'|' {
                 //start of metadata detected
                 pipe_found_flag = true;
+                rat_file.read(&mut uuid_buffer)?;
+                let file_uuid =
+                    Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
+                if file_uuid == uuid {
+                    return Ok(rat_file.stream_position().unwrap() - 37);
+                }
                 continue;
             }
             if pipe_found_flag && (char_buffer[0] == b';') {
                 rat_file.read(&mut char_buffer)?;
                 if char_buffer[0] == b'/' {
                     //end of metadata detected
-                    return Err(Error::new(ErrorKind::NotFound, "UUID not found"));
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        format!("UUID '{}' not found", uuid),
+                    ));
                 } else {
                     rat_file.seek(SeekFrom::Current(-1))?;
                 }

@@ -22,11 +22,11 @@ fn main() {
         file.add_file(&path).expect("Failed to add file");
     }
 
-    println!("files : {:?}", file.get_file_list().unwrap());
+    println!("\n\nfiles : {:?}\n\n", file.get_file_list().unwrap());
 
-    file.extract_file(
-        uuid::Uuid::parse_str("894ceb57-2415-11ee-bddd-010203040506").expect("cant parse uuid"),
-        PathBuf::from("./result.txt"),
-    )
-    .expect("Failed to extract file");
+    // file.extract_file(
+    //     uuid::Uuid::parse_str("2a26591d-2a26-11ee-9f2b-010203040506").expect("cant parse uuid"),
+    //     PathBuf::from("./result.txt"),
+    // )
+    // .expect("Failed to extract file");
 }
