@@ -3,8 +3,6 @@ use std::{
     fmt::{Debug, Display},
     path::PathBuf,
 };
-
-use base64::encoded_len;
 use uuid::{Context, Timestamp, Uuid};
 
 use super::rat_file::RatFile;

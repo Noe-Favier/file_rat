@@ -19,14 +19,16 @@ fn main() {
 
     for i in 1..3 + 1 {
         let path = PathBuf::from(format!("./{}.txt", i));
-        file.add_file(&path).expect("Failed to add file");
+        //file.add_file(&path).expect("Failed to add file");
     }
-
     println!("\n\nfiles : {:?}\n\n", file.get_file_list().unwrap());
 
-    // file.extract_file(
-    //     uuid::Uuid::parse_str("2a26591d-2a26-11ee-9f2b-010203040506").expect("cant parse uuid"),
-    //     PathBuf::from("./result.txt"),
-    // )
-    // .expect("Failed to extract file");
+    for x in file.get_file_list().unwrap() {
+        let path = PathBuf::from(format!("./{}-RESULT.txt", x.name));
+        file
+        .extract_file(
+            uuid::Uuid::parse_str(x.uuid.to_string().as_str()).expect("cant parse uuid"),
+            path,
+        ).expect("Failed to extract file");
+    }
 }

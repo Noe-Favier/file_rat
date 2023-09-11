@@ -1,15 +1,11 @@
 //TODO: removed useless seeks at end of each fn
 use std::{
-    borrow::BorrowMut,
-    char,
-    fs::{create_dir_all, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{BufReader, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
-    usize,
 };
 extern crate base64;
 use super::rfile::RFile;
-use base64::{decoded_len_estimate, encoded_len, engine::general_purpose, Engine as _};
 use memmap2::MmapMut;
 use std::io::ErrorKind::InvalidInput;
 use uuid::Uuid;
@@ -94,7 +90,7 @@ impl RatFile {
     }
 
     pub fn get_file_list(&self) -> Result<Vec<RFile>, Error> {
-        let mut byte_read: usize = 0;
+        let mut byte_read: usize;
         let mut char_buffer: [u8; 1] = [0; 1];
         let mut rat_file = &self.file;
         let mut file_list: Vec<RFile> = Vec::new();
@@ -106,13 +102,11 @@ impl RatFile {
         loop {
             //start of metadata detected
             byte_read = rat_file.read(&mut char_buffer)?;
-            print!("{}", char_buffer[0] as char);
             if char_buffer[0] == b'|' {break;}
             else if byte_read == 0 {Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"))?;}
         }
         loop {
             byte_read = rat_file.read(&mut char_buffer)?;
-            print!("{}", char_buffer[0] as char);
             if byte_read == 0 {Err(Error::new(ErrorKind::UnexpectedEof, "Unexpected EOF"))?;}
 
             if char_buffer[0] == b';' {
@@ -164,8 +158,8 @@ impl RatFile {
         mmap.copy_within(pos..rat_size as usize, pos + rfile.serialize().len()); //moving the file data to the right
         mmap[pos..pos + rfile.serialize().len()].copy_from_slice(rfile.serialize().as_bytes()); //writing the file metadata between
         mmap.flush()?;
-        total_byte_written += rfile.serialize().len(); //updating the total byte written
-                                                       //endregion metadata_writing
+        total_byte_written += rfile.serialize().len() + 1; //updating the total byte written (we start counting at 0 so +1)
+        //endregion metadata_writing
 
         //region metadata re-indexing to predecessors
         rat_file.flush()?;
@@ -233,7 +227,6 @@ impl RatFile {
                 size_changed_flag = false;
             }
 
-            //TODO: WRITE CHANGES
             let mut mmap = unsafe { MmapMut::map_mut(rat_file)? };
             if size_changed_flag {
                 mmap.copy_within(
@@ -286,7 +279,6 @@ impl RatFile {
 
         loop {
             rat_file.read(&mut char_buffer)?;
-            print!("{}", char_buffer[0] as char);
             if char_buffer[0] == b'|' {
                 //start of metadata detected
                 pipe_found_flag = true;
@@ -294,7 +286,7 @@ impl RatFile {
                 let file_uuid =
                     Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
                 if file_uuid == uuid {
-                    return Ok(rat_file.stream_position().unwrap() - 37);
+                    return Ok(rat_file.stream_position().unwrap() - 36);
                 }
                 continue;
             }
@@ -314,7 +306,8 @@ impl RatFile {
                 let file_uuid =
                     Uuid::parse_str(std::str::from_utf8(&uuid_buffer).unwrap()).unwrap();
                 if file_uuid == uuid {
-                    return Ok(rat_file.stream_position().unwrap() - 37);
+                    println!("\tFound : {} - {} = {} ", rat_file.stream_position().unwrap(), 37, rat_file.stream_position().unwrap() - 37);
+                    return Ok(rat_file.stream_position().unwrap() - 36);
                 }
             }
         }
