@@ -188,9 +188,9 @@ impl RatFile {
 
     fn update_predecessors_metadata_indexes( //fixme: this function is not working properly (bad writing location + amount calculation)
         &self,
-        uuid: Uuid,
-        amount: usize,
-        positive: bool,
+         uuid: Uuid,
+         mut amount: usize,
+         positive: bool,
     ) -> Result<(), Error> {
         //Recursively increment if positive, decrement if negative
 
@@ -200,12 +200,13 @@ impl RatFile {
         println!("Updating metadata indexes of {} files", rfiles.len());
         for mut f in rfiles {
             println!(
-                "Updating metadata of {} with positive {} and amount of {}",
+                "\t\tUpdating metadata of {} with positive == {} and amount of {}",
                 f.name, positive, amount
             );
             let pos: usize = self.find_metadata_start_by_uuid(f.uuid)? as usize;
             let old_meta: String = f.serialize();
             let new_meta: String = f.update_index(amount, positive);
+            println!("\told meta : {} // {}", old_meta, new_meta);
             let mut size_changed_flag: bool = true;
             //if those changes have generated a new metadata size, we need to update the byte start of the predecessors again
             //TODO: condition not that pretty but it works

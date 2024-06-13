@@ -17,9 +17,9 @@ fn main() {
     let file = RatFile::new_from(&path).unwrap();
     println!("File opened at: {}", file.path().to_str().unwrap());
 
-    for i in 1..3 + 1 {
-        let path = PathBuf::from(format!("./{}.txt", i));
-        //file.add_file(&path).expect("Failed to add file");
+    for i in 1..6 + 1 {
+        let path = PathBuf::from(format!("./file{}.txt", i));
+        file.add_file(&path).expect("Failed to add file");
     }
     println!("\n\nfiles : {:?}\n\n", file.get_file_list().unwrap());
 
