@@ -1,34 +1,34 @@
 use std::path::PathBuf;
 mod structs;
+mod metatest;
 
 use structs::rat_file::RatFile;
 
 fn main() {
-    let path = PathBuf::from("./test.rat");
+    //let rfile= new Rfile<Metadata.class>(fileRef);
 
-    if RatFile::can_create_at(&path) {
-        let _file = RatFile::create_at(&path).unwrap();
-        println!("File created at: {}", _file.path().to_str().unwrap());
-    }
+    /*
+    > add to end of data -> binrw file content
+    > add to end of hadr -> (start>end + file name + metadata in json + unique id)
 
-    if !RatFile::can_open_at(&path) {
-        panic!("File cannot be opened");
-    }
-    let file = RatFile::new_from(&path).unwrap();
-    println!("File opened at: {}", file.path().to_str().unwrap());
 
-    for i in 1..6 + 1 {
-        let path = PathBuf::from(format!("./file{}.txt", i));
-        file.add_file(&path).expect("Failed to add file");
-    }
-    println!("\n\nfiles : {:?}\n\n", file.get_file_list().unwrap());
+    file format :
 
-    for x in file.get_file_list().unwrap() {
-        let path = PathBuf::from(format!("./{}-RESULT.txt", x.name));
-        file
-        .extract_file(
-            uuid::Uuid::parse_str(x.uuid.to_string().as_str()).expect("cant parse uuid"),
-            path,
-        ).expect("Failed to extract file");
-    }
+    [--@DATA@--|headers]
+
+
+    pre-cond to an update :
+        - the disk needs filesize in worst case of room + headers
+        - rights 700 on file
+        - rat file is not in EOF
+
+    technical specs :
+        - the Metadata motherclass must have a serial id autocalculated
+        - the rat processor can be made
+                - serial ignorant to disable serial checks
+                - high/low compression level
+                - encrypted headers
+
+
+    */
 }
