@@ -1,8 +1,5 @@
-use std::path::PathBuf;
 mod structs;
 mod metatest;
-
-use structs::rat_file::RatFile;
 
 fn main() {
     //let rfile= new Rfile<Metadata.class>(fileRef);
