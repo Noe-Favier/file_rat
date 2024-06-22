@@ -1,14 +1,64 @@
-use crate::structs::rat_file::RatFile;
-use std::fs::File;
+use crate::structs::{
+    f_item::FileItem,
+    rat_file::{self, RatFile},
+};
+use binrw::io::BufReader;
+use bzip2::bufread::BzEncoder;
+use std::{
+    fs::File,
+    io::{Cursor, Read, Seek, SeekFrom, Write},
+    os::windows::fs::MetadataExt,
+    path::PathBuf,
+};
 
 impl<T> RatFile<T> {
-    pub(crate) fn insert_to_rat_file(&mut self, file: File) {
-        let file_size = file.metadata().unwrap().len();
-        let mut buffer = [0; Self::BUFFER_SIZE];
+    pub(crate) fn insert_to_rat_file(
+        &mut self,
+        filep: PathBuf,
+        metadata: T,
+    ) -> Result<FileItem<T>, std::io::Error> {
+        let buffer_size = Self::BUFFER_SIZE;
+        // rat file descriptor
+        let mut rat_file: File = File::open(self.file_path.clone())?;
+        // \\
 
-        let mut start = 0;
-        let mut end = 0;
+        // file descriptor
+        let file: File = File::open(filep.clone())?;
+        // \\
 
+        // FileItem attributes
+        let name = filep
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap_or("untilted")
+            .to_string();
+        let file_size = file.metadata()?.len();
+        let mut end = 0; // will be incremented as we read the file
+        let start = rat_file.seek(SeekFrom::End(0))?;
+        // \\
 
+        // ----- ----- -----  DATA  ----- ----- ----- //
+
+        // Encoding utils
+        let mut buffer = vec![0; buffer_size];
+        let br: BufReader<File> = BufReader::new(file);
+        let mut encoder = BzEncoder::new(br, bzip2::Compression::fast());
+        // \\
+
+        loop {
+            let bytes_read = encoder.read(&mut buffer)?;
+            if bytes_read == 0 {
+                break;
+            }
+            end += bytes_read;
+            rat_file.write_all(&buffer[..bytes_read])?;
+        }
+
+        // ----- ----- ----- Header ----- ----- ----- //
+
+        
+
+        return Ok(FileItem::new(name, metadata, file_size, start, end as u64));
     }
 }
