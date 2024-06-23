@@ -1,13 +1,12 @@
 use crate::structs::{
     f_item::FileItem,
-    rat_file::{self, RatFile},
+    rat_file::RatFile,
 };
 use binrw::io::BufReader;
 use bzip2::bufread::BzEncoder;
 use std::{
     fs::File,
-    io::{Cursor, Read, Seek, SeekFrom, Write},
-    os::windows::fs::MetadataExt,
+    io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 
@@ -57,8 +56,10 @@ impl<T> RatFile<T> {
 
         // ----- ----- ----- Header ----- ----- ----- //
 
-        
+        let header_start = Self::get_header_start(&mut rat_file)?;
+        rat_file.seek(SeekFrom::Start(header_start))?;
 
         return Ok(FileItem::new(name, metadata, file_size, start, end as u64));
     }
+
 }

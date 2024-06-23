@@ -1,3 +1,7 @@
+use std::{borrow::BorrowMut, fs::File, io::Empty, path::PathBuf};
+
+use structs::rat_file::RatFile;
+
 mod structs;
 mod metatest;
 
@@ -28,4 +32,7 @@ fn main() {
 
 
     */
+
+    let rat_file: RatFile<Empty> = structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true).unwrap();
+    println!("{:?}", RatFile::<Empty>::get_header_start(File::open(&rat_file.file_path).unwrap().borrow_mut()));
 }
