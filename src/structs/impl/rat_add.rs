@@ -1,6 +1,5 @@
 use crate::structs::{
-    f_item::FileItem,
-    rat_file::RatFile,
+    enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile
 };
 use binrw::io::BufReader;
 use bzip2::bufread::BzEncoder;
@@ -10,6 +9,7 @@ use std::{
     path::PathBuf,
 };
 
+#[allow(dead_code)]
 impl<T> RatFile<T> {
     pub(crate) fn insert_to_rat_file(
         &mut self,
@@ -42,7 +42,11 @@ impl<T> RatFile<T> {
         // Encoding utils
         let mut buffer = vec![0; buffer_size];
         let br: BufReader<File> = BufReader::new(file);
-        let mut encoder = BzEncoder::new(br, bzip2::Compression::fast());
+        let mut encoder = BzEncoder::new(br, match self.compression_type {
+            CompressionType::Fast => bzip2::Compression::fast(),
+            CompressionType::Best => bzip2::Compression::best(),
+            CompressionType::None => bzip2::Compression::none(),
+        });
         // \\
 
         loop {

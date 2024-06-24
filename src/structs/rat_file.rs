@@ -1,7 +1,8 @@
 use crate::structs::f_item::FileItem;
+use crate::structs::enums::compression_type::CompressionType;
 use std::{
     fs::File,
-    io::{Error, ErrorKind, Read, Seek, SeekFrom, Write},
+    io::{Empty, Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 
@@ -11,28 +12,61 @@ pub struct RatFile<T> {
 
     pub(crate) file_path: PathBuf,
     pub(crate) file_size: u64,
+
+    pub(crate) compression_type: CompressionType,
 }
 
+#[allow(dead_code)]
 impl<T> RatFile<T> {
+    pub(super) const RAT_VERSION: u8 = b'1';
+
     pub(crate) const BUFFER_SIZE: usize = 2000;
     pub(crate) const BUFFER_SIZE_HEADERS: usize = 1024;
     pub(crate) const HEADER_SEPARATOR: u8 = b'|';
-    const BASE_RAT_FILE_CONTENT: &'static [u8] = b"|;";
+    pub(crate) const HEADER_ITEM_SEPARATOR: u8 = b';';
+    pub(crate) const HEADER_GENERAL_SEPARATOR: u8 = b'/';
 
-
-    pub fn new(file_path: PathBuf, can_create: bool) -> Result<Self, Error> {
+    pub fn new(
+        file_path: PathBuf, 
+        can_create: bool,
+        compression_type: CompressionType,
+        ) -> Result<Self, Error> {
 
         if !file_path.exists() && !can_create {
           return Err(Error::new(ErrorKind::NotFound, "File not found"))
         }else if !file_path.exists() && can_create{
+
+            let base_content: [u8; 7] = [
+                //"|" declaring the start of the global header section
+                RatFile::<Empty>::HEADER_SEPARATOR, 
+                //version of the rat file
+                RatFile::<Empty>::RAT_VERSION, 
+
+                // ";"
+                RatFile::<Empty>::HEADER_ITEM_SEPARATOR, 
+
+                //flag declaring the compression level of the file
+                (compression_type.clone() as isize).to_string().as_bytes()[0],
+
+                // ";"
+                RatFile::<Empty>::HEADER_ITEM_SEPARATOR, 
+
+                //"0" lock flag
+                b'0',
+
+                //"/" declaring the start of the item header section
+                RatFile::<Empty>::HEADER_GENERAL_SEPARATOR,
+            ];
+
             let mut file = File::create(&file_path)?;
-            file.write(Self::BASE_RAT_FILE_CONTENT)?;
+            file.write(&base_content)?;
         }
 
         Ok(Self {
             files: Vec::new(),
             file_path,
             file_size: 0,
+            compression_type: compression_type,
         })
     }
     

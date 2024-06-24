@@ -1,5 +1,3 @@
-mod rat_add;
-mod rat_remove;
-mod rat_list;
-
-use crate::structs;
+pub mod rat_add;
+pub mod rat_remove;
+pub mod rat_list;
