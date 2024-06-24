@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+base64 = "0.22.1"
 binrw = "=0.14.0"
 bzip2 = "0.4.4"
 memmap2 = "0.9.4"
+serde_json = "1.0.117"
 
 [dependencies.uuid]
 version = "1.3.1"

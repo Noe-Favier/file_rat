@@ -1,5 +1,6 @@
-use std::{borrow::BorrowMut, fs::File, io::Empty, path::PathBuf};
+use std::{borrow::BorrowMut, fs::{File, Metadata}, io::Empty, path::PathBuf};
 
+use metatest::MetadataTest;
 use structs::rat_file::RatFile;
 use crate::structs::enums::compression_type::CompressionType;
 
@@ -34,6 +35,8 @@ fn main() {
 
     */
 
-    let rat_file: RatFile<Empty> = structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best).unwrap();
-    println!("{:?}", RatFile::<Empty>::get_header_start(File::open(&rat_file.file_path).unwrap().borrow_mut()));
+    let mut rat_file: RatFile<MetadataTest> = structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best).unwrap();
+    println!("{:?}", RatFile::<MetadataTest>::get_item_header_index(File::open(&rat_file.file_path).unwrap().borrow_mut()));
+
+    rat_file.insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
 }

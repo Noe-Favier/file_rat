@@ -4,10 +4,11 @@ use crate::structs::{
 use binrw::io::BufReader;
 use bzip2::bufread::BzEncoder;
 use std::{
-    fs::File,
+    fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
+use base64::{alphabet, engine, write};
 
 #[allow(dead_code)]
 impl<T> RatFile<T> {
@@ -17,8 +18,12 @@ impl<T> RatFile<T> {
         metadata: T,
     ) -> Result<FileItem<T>, std::io::Error> {
         let buffer_size = Self::BUFFER_SIZE;
-        // rat file descriptor
-        let mut rat_file: File = File::open(self.file_path.clone())?;
+        // rat file descriptor (opened with write permissions)
+        let mut rat_file: File = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .read(true)
+            .open(self.file_path.clone())?;
         // \\
 
         // file descriptor
@@ -38,7 +43,6 @@ impl<T> RatFile<T> {
         // \\
 
         // ----- ----- -----  DATA  ----- ----- ----- //
-
         // Encoding utils
         let mut buffer = vec![0; buffer_size];
         let br: BufReader<File> = BufReader::new(file);
@@ -49,19 +53,33 @@ impl<T> RatFile<T> {
         });
         // \\
 
+
+        rat_file.seek(SeekFrom::End(
+            self.get_general_header_index()? as i64,
+        ))?;
+        
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
             if bytes_read == 0 {
                 break;
             }
             end += bytes_read;
-            rat_file.write_all(&buffer[..bytes_read])?;
+            println!("Bytes read before: {}", bytes_read);
+            rat_file.write(&buffer[..bytes_read]).expect("ALAIDE");
+            println!("Bytes read after: {}", bytes_read)
         }
 
         // ----- ----- ----- Header ----- ----- ----- //
-
-        let header_start = Self::get_header_start(&mut rat_file)?;
+        let header_start = Self::get_item_header_index(&mut rat_file)?;
         rat_file.seek(SeekFrom::Start(header_start))?;
+
+        // header
+        let header = b"{header}";
+        //encode the header in base64
+        let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
+        let mut b64_encoder = write::EncoderWriter::new(rat_file, &engine);
+        b64_encoder.write_all(header)?;
+        // \\
 
         return Ok(FileItem::new(name, metadata, file_size, start, end as u64));
     }
