@@ -36,7 +36,7 @@ fn main() {
     */
 
     let mut rat_file: RatFile<MetadataTest> = structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best).unwrap();
-    println!("{:?}", RatFile::<MetadataTest>::get_item_header_index(File::open(&rat_file.file_path).unwrap().borrow_mut()));
+    println!("{:?}", rat_file.get_item_header_index());
 
     rat_file.insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
 }

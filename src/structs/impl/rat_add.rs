@@ -1,11 +1,11 @@
 use crate::structs::{
     enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile
 };
-use binrw::io::BufReader;
+
 use bzip2::bufread::BzEncoder;
 use std::{
     fs::{File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    io::{BufReader, Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 use base64::{alphabet, engine, write};
@@ -49,7 +49,7 @@ impl<T> RatFile<T> {
         let mut encoder = BzEncoder::new(br, match self.compression_type {
             CompressionType::Fast => bzip2::Compression::fast(),
             CompressionType::Best => bzip2::Compression::best(),
-            CompressionType::None => bzip2::Compression::none(),
+            CompressionType::Default => bzip2::Compression::default(),
         });
         // \\
 
@@ -70,7 +70,7 @@ impl<T> RatFile<T> {
         }
 
         // ----- ----- ----- Header ----- ----- ----- //
-        let header_start = Self::get_item_header_index(&mut rat_file)?;
+        let header_start = self.get_item_header_index()?;
         rat_file.seek(SeekFrom::Start(header_start))?;
 
         // header
