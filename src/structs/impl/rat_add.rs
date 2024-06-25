@@ -56,9 +56,7 @@ impl<T> RatFile<T> {
 
         
         // Move the general header to a tmp file
-        rat_file.seek(SeekFrom::End(self.get_general_header_index()? as i64))?; //TODO: check if this is correct
-        let header_old_pos = rat_file.seek(SeekFrom::Current(0))?;
-        println!("header_old_pos: {} // {}", header_old_pos, self.get_general_header_index()?);
+        rat_file.seek(SeekFrom::Start(0))?;
         let mut tmpfile: File = tempfile::tempfile()?;
         loop {
             let bytes_read = rat_file.read(&mut buffer)?;
@@ -68,9 +66,10 @@ impl<T> RatFile<T> {
             }
             tmpfile.write(&buffer[..bytes_read])?;
         }
+        tmpfile.flush()?;
 
         // Append data to the rat file
-        rat_file.seek(SeekFrom::Start(header_old_pos))?;
+        rat_file.seek(SeekFrom::Start(0))?;
         println!("writing data to rat file at position {}", rat_file.seek(SeekFrom::Current(0))?);
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
@@ -81,6 +80,7 @@ impl<T> RatFile<T> {
             end += bytes_read;
             rat_file.write(&buffer[..bytes_read])?;
         }
+        rat_file.flush()?;
 
         // Append all headers back to the rat file
         tmpfile.seek(SeekFrom::Start(0))?;
