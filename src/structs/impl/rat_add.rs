@@ -4,9 +4,8 @@ use crate::structs::{
 
 use base64::{alphabet, engine, write};
 use bzip2::bufread::BzEncoder;
-use memmap2::MmapMut;
 use std::{
-    borrow::{Borrow, BorrowMut}, fs::{File, OpenOptions}, io::{BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf
+    fs::{File, OpenOptions}, io::{BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf
 };
 
 #[allow(dead_code)]
@@ -23,8 +22,6 @@ impl<T> RatFile<T> {
             .append(true)
             .read(true)
             .open(self.file_path.clone())?;
-        let mut mmap = unsafe { MmapMut::map_mut(&rat_file)? };
-        let mut rat_file_len = rat_file.metadata()?.len();
         // \\
 
         // file descriptor
@@ -57,23 +54,46 @@ impl<T> RatFile<T> {
         );
         // \\
 
-        let general_header_index = self.get_general_header_index()? as usize;
-        let mut write_pos = general_header_index;
+        
+        // Move the general header to a tmp file
+        rat_file.seek(SeekFrom::End(self.get_general_header_index()? as i64))?; //TODO: check if this is correct
+        let header_old_pos = rat_file.seek(SeekFrom::Current(0))?;
+        println!("header_old_pos: {} // {}", header_old_pos, self.get_general_header_index()?);
+        let mut tmpfile: File = tempfile::tempfile()?;
+        loop {
+            let bytes_read = rat_file.read(&mut buffer)?;
+            println!("(1) bytes_read: {}", bytes_read);
+            if bytes_read == 0 {
+                break;
+            }
+            tmpfile.write(&buffer[..bytes_read])?;
+        }
+
+        // Append data to the rat file
+        rat_file.seek(SeekFrom::Start(header_old_pos))?;
+        println!("writing data to rat file at position {}", rat_file.seek(SeekFrom::Current(0))?);
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
+            println!("(2) bytes_read: {}", bytes_read);
             if bytes_read == 0 {
                 break;
             }
             end += bytes_read;
-            rat_file_len += bytes_read as u64;
-            rat_file.set_len(rat_file_len)?; // extend file size
-            println!("general hd {} & bytes read: {} & rat_file_len: {} => {:?}", general_header_index, bytes_read, rat_file_len, write_pos..write_pos + bytes_read);
-            mmap[write_pos..write_pos + bytes_read].copy_from_slice(&buffer[..bytes_read]);
-            write_pos += bytes_read;
+            rat_file.write(&buffer[..bytes_read])?;
         }
 
-        // Flush changes to disk
-        mmap.flush()?;
+        // Append all headers back to the rat file
+        tmpfile.seek(SeekFrom::Start(0))?;
+        rat_file.seek(SeekFrom::End(0))?;
+        loop {
+            let bytes_read = tmpfile.read(&mut buffer)?;
+            println!("(3) bytes_read: {}", bytes_read);
+            if bytes_read == 0 {
+                break;
+            }
+            rat_file.write(&buffer[..bytes_read])?;
+        }
+
 
         // ----- ----- ----- Header ----- ----- ----- //
         let header_start = self.get_item_header_index()?;
