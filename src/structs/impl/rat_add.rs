@@ -1,14 +1,13 @@
 use crate::structs::{
-    enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile
+    enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile,
 };
 
-use bzip2::bufread::BzEncoder;
-use std::{
-    fs::{File, OpenOptions},
-    io::{BufReader, Read, Seek, SeekFrom, Write},
-    path::PathBuf,
-};
 use base64::{alphabet, engine, write};
+use bzip2::bufread::BzEncoder;
+use memmap2::MmapMut;
+use std::{
+    borrow::{Borrow, BorrowMut}, fs::{File, OpenOptions}, io::{BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf
+};
 
 #[allow(dead_code)]
 impl<T> RatFile<T> {
@@ -24,6 +23,8 @@ impl<T> RatFile<T> {
             .append(true)
             .read(true)
             .open(self.file_path.clone())?;
+        let mut mmap = unsafe { MmapMut::map_mut(&rat_file)? };
+        let mut rat_file_len = rat_file.metadata()?.len();
         // \\
 
         // file descriptor
@@ -46,28 +47,33 @@ impl<T> RatFile<T> {
         // Encoding utils
         let mut buffer = vec![0; buffer_size];
         let br: BufReader<File> = BufReader::new(file);
-        let mut encoder = BzEncoder::new(br, match self.compression_type {
-            CompressionType::Fast => bzip2::Compression::fast(),
-            CompressionType::Best => bzip2::Compression::best(),
-            CompressionType::Default => bzip2::Compression::default(),
-        });
+        let mut encoder = BzEncoder::new(
+            br,
+            match self.compression_type {
+                CompressionType::Fast => bzip2::Compression::fast(),
+                CompressionType::Best => bzip2::Compression::best(),
+                CompressionType::Default => bzip2::Compression::default(),
+            },
+        );
         // \\
 
-
-        rat_file.seek(SeekFrom::End(
-            self.get_general_header_index()? as i64,
-        ))?;
-        
+        let general_header_index = self.get_general_header_index()? as usize;
+        let mut write_pos = general_header_index;
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
             if bytes_read == 0 {
                 break;
             }
             end += bytes_read;
-            println!("Bytes read before: {}", bytes_read);
-            rat_file.write(&buffer[..bytes_read]).expect("ALAIDE");
-            println!("Bytes read after: {}", bytes_read)
+            rat_file_len += bytes_read as u64;
+            rat_file.set_len(rat_file_len)?; // extend file size
+            println!("general hd {} & bytes read: {} & rat_file_len: {} => {:?}", general_header_index, bytes_read, rat_file_len, write_pos..write_pos + bytes_read);
+            mmap[write_pos..write_pos + bytes_read].copy_from_slice(&buffer[..bytes_read]);
+            write_pos += bytes_read;
         }
+
+        // Flush changes to disk
+        mmap.flush()?;
 
         // ----- ----- ----- Header ----- ----- ----- //
         let header_start = self.get_item_header_index()?;
@@ -83,5 +89,4 @@ impl<T> RatFile<T> {
 
         return Ok(FileItem::new(name, metadata, file_size, start, end as u64));
     }
-
 }
