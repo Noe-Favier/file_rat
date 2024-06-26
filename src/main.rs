@@ -39,4 +39,5 @@ fn main() {
     println!("{:?}", rat_file.get_item_header_index());
 
     rat_file.insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
+    rat_file.insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
 }

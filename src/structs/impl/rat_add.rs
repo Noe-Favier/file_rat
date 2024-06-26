@@ -19,7 +19,7 @@ impl<T> RatFile<T> {
         // rat file descriptor (opened with write permissions)
         let mut rat_file: File = OpenOptions::new()
             .write(true)
-            .append(true)
+            .append(false)
             .read(true)
             .open(self.file_path.clone())?;
         // \\
@@ -54,9 +54,11 @@ impl<T> RatFile<T> {
         );
         // \\
 
-        
+        let general_header_index = self.get_general_header_index()?;
+        let is_not_first_file: bool = general_header_index > 0;
+
         // Move the general header to a tmp file
-        rat_file.seek(SeekFrom::Start(0))?;
+        rat_file.seek(SeekFrom::Start(general_header_index))?;
         let mut tmpfile: File = tempfile::tempfile()?;
         loop {
             let bytes_read = rat_file.read(&mut buffer)?;
@@ -69,8 +71,8 @@ impl<T> RatFile<T> {
         tmpfile.flush()?;
 
         // Append data to the rat file
-        rat_file.seek(SeekFrom::Start(0))?;
-        println!("writing data to rat file at position {}", rat_file.seek(SeekFrom::Current(0))?);
+        rat_file.seek(SeekFrom::Start(general_header_index))?;
+        rat_file.flush()?;
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
             println!("(2) bytes_read: {}", bytes_read);
@@ -96,9 +98,12 @@ impl<T> RatFile<T> {
 
 
         // ----- ----- ----- Header ----- ----- ----- //
-        let header_start = self.get_item_header_index()?;
-        rat_file.seek(SeekFrom::Start(header_start))?;
-
+        /*
+        at this point we're already at the end of the file
+        */
+        if is_not_first_file {
+           rat_file.write_all(b";")?; 
+        }
         // header
         let header = b"{header}";
         //encode the header in base64

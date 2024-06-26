@@ -87,8 +87,9 @@ impl<T> RatFile<T> {
                 break;
             }
 
-            if let Some(pos) = buffer[..bytes_read].iter().rposition(|&x| x == flag) {
-                let header_start = position + pos as u64;
+            if let Some(p) = buffer[..bytes_read].iter().rposition(|&x| x == flag) {
+                let header_start = p as u64 + position;
+                println!("header_start: {}", header_start);
                 rat_file_descriptor.seek(SeekFrom::Start(current_position))?;
                 return Ok(header_start);
             }
@@ -99,7 +100,7 @@ impl<T> RatFile<T> {
     }
 
     /**
-     * Give the index BEFORE the general section flag
+     * Give the index BEFORE the general section flag (from start)
      */
     pub(crate) fn get_general_header_index(&self) -> Result<u64, Error> {
         return self.get_flag_index(Self::HEADER_SECTION_GENERAL_SEPARATOR);
