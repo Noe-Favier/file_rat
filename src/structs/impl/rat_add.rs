@@ -4,12 +4,13 @@ use crate::structs::{
 
 use base64::{alphabet, engine, write};
 use bzip2::bufread::BzEncoder;
+use serde::{Serialize, Deserialize};
 use std::{
     fs::{File, OpenOptions}, io::{BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf
 };
 
 #[allow(dead_code)]
-impl<T> RatFile<T> {
+impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
     pub(crate) fn insert_to_rat_file(
         &mut self,
         filep: PathBuf,

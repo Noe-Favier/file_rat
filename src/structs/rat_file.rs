@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::structs::enums::compression_type::CompressionType;
 use crate::structs::f_item::FileItem;
 use std::{
     fs::File,
-    io::{Empty, Error, ErrorKind, Read, Seek, SeekFrom, Write},
+    io::{Error, ErrorKind, Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 
@@ -17,7 +19,7 @@ pub struct RatFile<T> {
 }
 
 #[allow(dead_code)]
-impl<T> RatFile<T> {
+impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
     pub(super) const RAT_VERSION: u8 = b'1';
 
     pub(crate) const BUFFER_SIZE: usize = 2000;
@@ -37,19 +39,19 @@ impl<T> RatFile<T> {
         } else if !file_path.exists() && can_create {
             let base_content: [u8; 7] = [
                 //"|" declaring the start of the global header section
-                RatFile::<Empty>::HEADER_SECTION_GENERAL_SEPARATOR,
+                RatFile::<T>::HEADER_SECTION_GENERAL_SEPARATOR,
                 //version of the rat file
-                RatFile::<Empty>::RAT_VERSION,
+                RatFile::<T>::RAT_VERSION,
                 // ";"
-                RatFile::<Empty>::HEADER_ITEM_SEPARATOR,
+                RatFile::<T>::HEADER_ITEM_SEPARATOR,
                 //flag declaring the compression level of the file
                 (compression_type.clone() as isize).to_string().as_bytes()[0],
                 // ";"
-                RatFile::<Empty>::HEADER_ITEM_SEPARATOR,
+                RatFile::<T>::HEADER_ITEM_SEPARATOR,
                 //"0" lock flag
                 b'0',
                 //"/" declaring the start of the item header section
-                RatFile::<Empty>::HEADER_SECTION_ITEM_SEPARATOR,
+                RatFile::<T>::HEADER_SECTION_ITEM_SEPARATOR,
             ];
 
             let mut file = File::create(&file_path)?;
