@@ -1,7 +1,10 @@
 use std::fs::File;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 #[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
 pub struct MetadataTest {
     text: String,
     hour: String,
