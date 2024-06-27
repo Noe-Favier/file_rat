@@ -37,8 +37,8 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             .unwrap_or("untilted")
             .to_string();
         let file_size = file.metadata()?.len();
-        let mut end = 0; // will be incremented as we read the file
-        let start = rat_file.seek(SeekFrom::End(0))?;
+        let mut end = 0;  // will be incremented as we read the file
+        let start;         // will be incremented as we read the file
         // \\
 
         // ----- ----- -----  DATA  ----- ----- ----- //
@@ -74,6 +74,7 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         // Append data to the rat file
         rat_file.seek(SeekFrom::Start(general_header_index))?;
         rat_file.flush()?;
+        start = rat_file.stream_position()?;
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
             println!("(2) bytes_read: {}", bytes_read);
@@ -99,6 +100,7 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
 
 
         // ----- ----- ----- Header ----- ----- ----- //
+        let fi = FileItem::new(name, metadata, file_size, start, end as u64);
         /*
         at this point we're already at the end of the file
         */
@@ -106,13 +108,14 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
            rat_file.write_all(b";")?; 
         }
         // header
-        let header = b"{header}";
+        let header_s = serde_json::to_string(&fi)?;
+        let header = header_s.as_bytes();
         //encode the header in base64
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
         let mut b64_encoder = write::EncoderWriter::new(rat_file, &engine);
         b64_encoder.write_all(header)?;
         // \\
 
-        return Ok(FileItem::new(name, metadata, file_size, start, end as u64));
+        return Ok(fi);
     }
 }
