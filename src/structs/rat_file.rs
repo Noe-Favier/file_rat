@@ -23,10 +23,10 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
     pub(super) const RAT_VERSION: u8 = b'1';
 
     pub(crate) const BUFFER_SIZE: usize = 2000;
-    pub(crate) const BUFFER_SIZE_HEADERS: usize = 1024;
+    pub(crate) const BUFFER_SIZE_HEADERS: usize = 64;
 
     pub(crate) const HEADER_SECTION_GENERAL_SEPARATOR: u8 = b'|';
-    pub(crate) const HEADER_SECTION_ITEM_SEPARATOR: u8 = b'/';
+    pub(crate) const HEADER_SECTION_ITEM_SEPARATOR: u8 = b'%';
     pub(crate) const HEADER_ITEM_SEPARATOR: u8 = b';';
 
     pub fn new(
