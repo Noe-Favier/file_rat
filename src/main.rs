@@ -40,4 +40,6 @@ fn main() {
 
     rat_file.insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
     rat_file.insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
+
+    println!("{:?}", rat_file.list_rat_file());
 }

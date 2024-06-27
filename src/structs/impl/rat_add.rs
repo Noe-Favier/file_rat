@@ -2,7 +2,7 @@ use crate::structs::{
     enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile,
 };
 
-use base64::{alphabet, engine, write};
+use base64::{alphabet, engine, write::{self, EncoderWriter}};
 use bzip2::bufread::BzEncoder;
 use serde::{Serialize, Deserialize};
 use std::{
@@ -105,14 +105,14 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         at this point we're already at the end of the file
         */
         if is_not_first_file {
-           rat_file.write_all(b";")?; 
+           rat_file.write(&[Self::HEADER_ITEM_SEPARATOR])?; 
         }
         // header
         let header_s = serde_json::to_string(&fi)?;
         let header = header_s.as_bytes();
         //encode the header in base64
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
-        let mut b64_encoder = write::EncoderWriter::new(rat_file, &engine);
+        let mut b64_encoder = EncoderWriter::new(rat_file, &engine);
         b64_encoder.write_all(header)?;
         // \\
 

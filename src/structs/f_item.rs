@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::{timestamp, v1::Context, ClockSequence, Timestamp, Uuid};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FileItem<T>{
-    id: Uuid,
+    pub(crate) id: Uuid,
 
     name: String,
     metadata: T,
