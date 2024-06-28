@@ -91,7 +91,6 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
 
             if let Some(p) = buffer[..bytes_read].iter().rposition(|&x| x == flag) {
                 let header_start = p as u64 + position;
-                println!("header_start: {}", header_start);
                 rat_file_descriptor.seek(SeekFrom::Start(current_position))?;
                 return Ok(header_start);
             }

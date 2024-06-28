@@ -2,7 +2,7 @@ use crate::structs::{
     enums::compression_type::CompressionType, f_item::FileItem, rat_file::RatFile,
 };
 
-use base64::{alphabet, engine, write::{self, EncoderWriter}};
+use base64::{alphabet, engine, write::EncoderWriter};
 use bzip2::bufread::BzEncoder;
 use serde::{Serialize, Deserialize};
 use std::{
@@ -56,14 +56,12 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         // \\
 
         let general_header_index = self.get_general_header_index()?;
-        let is_not_first_file: bool = general_header_index > 0;
 
         // Move the general header to a tmp file
         rat_file.seek(SeekFrom::Start(general_header_index))?;
         let mut tmpfile: File = tempfile::tempfile()?;
         loop {
             let bytes_read = rat_file.read(&mut buffer)?;
-            println!("(1) bytes_read: {}", bytes_read);
             if bytes_read == 0 {
                 break;
             }
@@ -77,7 +75,6 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         start = rat_file.stream_position()?;
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
-            println!("(2) bytes_read: {}", bytes_read);
             if bytes_read == 0 {
                 break;
             }
@@ -91,7 +88,6 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         rat_file.seek(SeekFrom::End(0))?;
         loop {
             let bytes_read = tmpfile.read(&mut buffer)?;
-            println!("(3) bytes_read: {}", bytes_read);
             if bytes_read == 0 {
                 break;
             }
@@ -101,19 +97,19 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
 
         // ----- ----- ----- Header ----- ----- ----- //
         let fi = FileItem::new(name, metadata, file_size, start, end as u64);
-        /*
-        at this point we're already at the end of the file
-        */
-        if is_not_first_file {
-           rat_file.write(&[Self::HEADER_ITEM_SEPARATOR])?; 
-        }
+
         // header
         let header_s = serde_json::to_string(&fi)?;
         let header = header_s.as_bytes();
         //encode the header in base64
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
-        let mut b64_encoder = EncoderWriter::new(rat_file, &engine);
+        let mut b64_encoder = EncoderWriter::new(&rat_file, &engine);
         b64_encoder.write_all(header)?;
+        // \\
+
+        // header separator
+        let mut writer = b64_encoder.finish()?;
+        writer.write(&[Self::HEADER_ITEM_SEPARATOR])?;
         // \\
 
         return Ok(fi);
