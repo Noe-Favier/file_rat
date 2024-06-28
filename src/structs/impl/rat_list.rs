@@ -31,7 +31,7 @@ where
         rat_bufread.seek(SeekFrom::Start(header_index))?;
         loop {
             // encoded reading
-            bytes_read = rat_bufread.read_until(Self::HEADER_ITEM_SEPARATOR,  &mut buffer)?;
+            bytes_read = rat_bufread.read_until(Self::HEADER_ITEM_SEPARATOR, &mut buffer)?;
             buffer.pop();
             if bytes_read == 0 {
                 break;

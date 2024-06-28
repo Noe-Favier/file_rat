@@ -78,8 +78,7 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             if bytes_read == 0 {
                 break;
             }
-            end += bytes_read;
-            rat_file.write(&buffer[..bytes_read])?;
+            end += rat_file.write(&buffer[..bytes_read])?;
         }
         rat_file.flush()?;
 
@@ -94,14 +93,13 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             rat_file.write(&buffer[..bytes_read])?;
         }
 
-
         // ----- ----- ----- Header ----- ----- ----- //
         let fi = FileItem::new(name, metadata, file_size, start, end as u64);
 
         // header
         let header_s = serde_json::to_string(&fi)?;
         let header = header_s.as_bytes();
-        //encode the header in base64
+        // encode the header in base64
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
         let mut b64_encoder = EncoderWriter::new(&rat_file, &engine);
         b64_encoder.write_all(header)?;
