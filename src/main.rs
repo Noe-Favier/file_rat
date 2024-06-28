@@ -1,11 +1,11 @@
-use std::{borrow::BorrowMut, fs::{File, Metadata}, io::Empty, path::PathBuf};
+use std::path::PathBuf;
 
+use crate::structs::enums::compression_type::CompressionType;
 use metatest::MetadataTest;
 use structs::rat_file::RatFile;
-use crate::structs::enums::compression_type::CompressionType;
 
-mod structs;
 mod metatest;
+mod structs;
 
 fn main() {
     //let rfile= new Rfile<Metadata.class>(fileRef);
@@ -35,11 +35,17 @@ fn main() {
 
     */
 
-    let mut rat_file: RatFile<MetadataTest> = structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best).unwrap();
+    let mut rat_file: RatFile<MetadataTest> =
+        structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best)
+            .unwrap();
     println!("{:?}", rat_file.get_item_header_index());
 
-    rat_file.insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
-    rat_file.insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new()).expect("Error inserting file to rat file");
+    rat_file
+        .insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new())
+        .expect("Error inserting file to rat file");
+    rat_file
+        .insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new())
+        .expect("Error inserting file to rat file");
 
     println!("{:?}", rat_file.list_rat_file());
 }
