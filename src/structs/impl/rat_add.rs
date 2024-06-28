@@ -4,9 +4,11 @@ use crate::structs::{
 
 use base64::{alphabet, engine, write::EncoderWriter};
 use bzip2::bufread::BzEncoder;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::{
-    fs::{File, OpenOptions}, io::{BufReader, Read, Seek, SeekFrom, Write}, path::PathBuf
+    fs::{File, OpenOptions},
+    io::{BufReader, Read, Seek, SeekFrom, Write},
+    path::PathBuf,
 };
 
 #[allow(dead_code)]
@@ -37,9 +39,9 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             .unwrap_or("untilted")
             .to_string();
         let file_size = file.metadata()?.len();
-        let mut end = 0;  // will be incremented as we read the file
-        let start;         // will be incremented as we read the file
-        // \\
+        let mut end = 0; // will be incremented as we read the file
+        let start; // will be incremented as we read the file
+                   // \\
 
         // ----- ----- -----  DATA  ----- ----- ----- //
         // Encoding utils
