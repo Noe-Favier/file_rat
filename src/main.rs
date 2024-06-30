@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::structs::enums::compression_type::CompressionType;
 use metatest::MetadataTest;
-use structs::rat_file::RatFile;
+use structs::{f_item::FileItem, rat_file::RatFile};
 
 mod metatest;
 mod structs;
@@ -46,6 +46,18 @@ fn main() {
     rat_file
         .insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new())
         .expect("Error inserting file to rat file");
+    rat_file
+        .insert_to_rat_file(PathBuf::from("./3.txt"), MetadataTest::new())
+        .expect("Error inserting file to rat file");
+
+    rat_file
+        .remove(
+            (rat_file.list_rat_file().expect("Error getting list") as Vec<FileItem<MetadataTest>>)
+                .get(1)
+                .unwrap()
+                .id,
+        )
+        .expect("Error removing file from rat file");
 
     println!("{:?}", rat_file.list_rat_file());
 }
