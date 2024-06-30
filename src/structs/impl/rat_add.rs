@@ -39,9 +39,10 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             .unwrap_or("untilted")
             .to_string();
         let file_size = file.metadata()?.len();
-        let mut end = 0; // will be incremented as we read the file
-        let start; // will be incremented as we read the file
-                   // \\
+        // will be incremented as we read the file
+        let start: u64;
+        let mut end: usize;
+        // \\
 
         // ----- ----- -----  DATA  ----- ----- ----- //
         // Encoding utils
@@ -75,6 +76,8 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
         rat_file.seek(SeekFrom::Start(general_header_index))?;
         rat_file.flush()?;
         start = rat_file.stream_position()?;
+        end = start as usize;
+
         loop {
             let bytes_read = encoder.read(&mut buffer)?;
             if bytes_read == 0 {
