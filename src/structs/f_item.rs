@@ -5,12 +5,12 @@ use uuid::{v1::Context, Timestamp, Uuid};
 pub struct FileItem<T> {
     pub(crate) id: Uuid,
 
-    name: String,
-    metadata: T,
+    pub(crate) name: String,
+    pub(crate) metadata: T,
 
-    start: u64,
-    end: u64,
-    size: u64,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+    pub(crate) size: u64,
 }
 
 impl<T> FileItem<T> {
