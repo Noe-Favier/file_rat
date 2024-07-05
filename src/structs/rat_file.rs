@@ -33,7 +33,7 @@ impl<T> RatFile<T> {
 #[allow(dead_code)]
 impl<'de, T> RatFile<T>
 where
-    T: Serialize + for<'a> Deserialize<'a>,
+    T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
     pub fn new(
         file_path: PathBuf,
@@ -106,9 +106,8 @@ where
             if let Some(p) = buffer[..bytes_read].iter().rposition(|&x| x == flag) {
                 let header_start = p as u64 + position;
                 rat_file_descriptor.seek(SeekFrom::Start(current_position))?;
-                if iterations < skipping {
-                    iterations += 1;
-                } else {
+                iterations += 1;
+                if iterations >= skipping {
                     return Ok(header_start);
                 }
             }
@@ -139,12 +138,13 @@ where
     pub(crate) fn get_item_header_index(&self, item_index: usize) -> Result<u64, Error> {
         //since the search is done from the end, the index is reversed
         //since there is a trailing separator, we need to skip it
-        println!(
-            "files.len(): {}, item_index: {}",
-            self.files.len(),
-            item_index
-        );
         let computed_index = self.files.len() - item_index + 1;
+        println!(
+            "files.len(): {}, item_index: {} (computed: {})",
+            self.files.len(),
+            item_index,
+            computed_index
+        );
         return self.get_flag_index_skipping(Self::HEADER_ITEM_SEPARATOR, computed_index);
     }
 }

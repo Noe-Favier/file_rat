@@ -43,26 +43,46 @@ fn main() {
     rat_file
         .insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new())
         .expect("Error inserting file to rat file");
+    println!(
+        "HEADER INDEX OF 1.txt {:?}",
+        rat_file.get_item_header_index(0)
+    );
+
     rat_file
         .insert_to_rat_file(PathBuf::from("./2.txt"), MetadataTest::new())
         .expect("Error inserting file to rat file");
-    rat_file
-        .insert_to_rat_file(PathBuf::from("./3.txt"), MetadataTest::new())
-        .expect("Error inserting file to rat file");
-
     println!(
         "HEADER INDEX OF 2.txt {:?}",
         rat_file.get_item_header_index(1)
     );
 
     rat_file
-        .remove(
-            (rat_file.list_rat_file().expect("Error getting list") as Vec<FileItem<MetadataTest>>)
-                .get(1)
-                .unwrap()
-                .id,
-        )
-        .expect("Error removing file from rat file");
+        .insert_to_rat_file(PathBuf::from("./3.txt"), MetadataTest::new())
+        .expect("Error inserting file to rat file");
 
-    println!("{:?}", rat_file.list_rat_file());
+    println!(
+        "HEADER INDEX OF 1.txt {:?}",
+        rat_file.get_item_header_index(0)
+    );
+
+    println!(
+        "HEADER INDEX OF 2.txt {:?}",
+        rat_file.get_item_header_index(1)
+    );
+
+    println!(
+        "HEADER INDEX OF 3.txt {:?}",
+        rat_file.get_item_header_index(2)
+    );
+
+    // rat_file
+    //     .remove(
+    //         (rat_file.list_rat_file().expect("Error getting list") as Vec<FileItem<MetadataTest>>)
+    //             .get(1)
+    //             .unwrap()
+    //             .id,
+    //     )
+    //     .expect("Error removing file from rat file");
+
+    println!("{:?}", rat_file.list_rat_file().unwrap());
 }

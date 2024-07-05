@@ -14,7 +14,7 @@ use std::{
 #[allow(dead_code)]
 impl<'de, T> RatFile<T>
 where
-    T: Serialize + for<'a> Deserialize<'a>,
+    T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
     pub(crate) fn insert_to_rat_file(
         &mut self,
@@ -117,6 +117,8 @@ where
         let mut writer = b64_encoder.finish()?;
         writer.write(&[Self::HEADER_ITEM_SEPARATOR])?;
         // \\
+
+        self.files.push(fi.clone());
 
         return Ok(fi);
     }

@@ -8,7 +8,7 @@ use std::{
 
 impl<'de, T> RatFile<T>
 where
-    T: Serialize + for<'a> Deserialize<'a>,
+    T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
     pub fn list_rat_file(&self) -> Result<Vec<FileItem<T>>, std::io::Error> {
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);

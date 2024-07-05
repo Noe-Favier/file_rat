@@ -1,3 +1,5 @@
+use std::io::Seek;
+
 use crate::structs::rat_file::RatFile;
 use memmap2::MmapMut;
 use serde::{Deserialize, Serialize};
@@ -6,10 +8,10 @@ use uuid::Uuid;
 #[allow(dead_code)]
 impl<'de, T> RatFile<T>
 where
-    T: Serialize + for<'a> Deserialize<'a>,
+    T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
     pub(crate) fn remove(&mut self, id: Uuid) -> Result<(), std::io::Error> {
-        let rat_file = std::fs::OpenOptions::new()
+        let mut rat_file = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
             .append(false)
@@ -17,13 +19,14 @@ where
         println!("rat_file_len: {:?}", rat_file.metadata()?.len());
 
         let list = &self.list_rat_file()?;
+        let target_file_index: usize;
 
         for (i, file) in list.iter().enumerate() {
             if file.id != id {
                 println!("|{}| file.id: {}, id: {}", i, file.id, id);
                 continue;
             } else {
-                println!("> |{}| file.id: {}, id: {}", i, file.id, id);
+                target_file_index = i;
             }
 
             let start = file.start as usize;
@@ -51,13 +54,23 @@ where
             println!("yay");
             println!("rat_file_len: {:?}", rat_file.metadata()?.len());
             // Remove the entry from the metadata
-            {}
-            //TODO: define .files
-            //self.files.remove(i);
+            {
+                let reindex_targets = &list[target_file_index..];
+                for (i, file) in reindex_targets.iter().enumerate() {
+                    println!("reindexing: {}", i);
+                    let mut file = file.clone();
+                    file.start -= length_to_remove as u64;
+                    file.end -= length_to_remove as u64;
+                    self.files[target_file_index + i] = file.clone();
+                }
+
+                rat_file.seek(std::io::SeekFrom::Start(0))?;
+            }
 
             //TODO: remove headers of the file
             //TODO: reindex the other headers who were added after the removed file
 
+            self.files.remove(i);
             return Ok(());
         }
 
