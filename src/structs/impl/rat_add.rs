@@ -12,7 +12,10 @@ use std::{
 };
 
 #[allow(dead_code)]
-impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
+impl<'de, T> RatFile<T>
+where
+    T: Serialize + for<'a> Deserialize<'a>,
+{
     pub(crate) fn insert_to_rat_file(
         &mut self,
         filep: PathBuf,

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::structs::enums::compression_type::CompressionType;
 use crate::structs::f_item::FileItem;
+
 use std::{
     fs::File,
     io::{Error, ErrorKind, Read, Seek, SeekFrom, Write},
@@ -18,8 +19,7 @@ pub struct RatFile<T> {
     pub(crate) compression_type: CompressionType,
 }
 
-#[allow(dead_code)]
-impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
+impl<T> RatFile<T> {
     pub(super) const RAT_VERSION: u8 = b'1';
 
     pub(crate) const BUFFER_SIZE: usize = 2000;
@@ -28,7 +28,13 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
     pub(crate) const HEADER_SECTION_GENERAL_SEPARATOR: u8 = b'|';
     pub(crate) const HEADER_SECTION_ITEM_SEPARATOR: u8 = b'%';
     pub(crate) const HEADER_ITEM_SEPARATOR: u8 = b';';
+}
 
+#[allow(dead_code)]
+impl<'de, T> RatFile<T>
+where
+    T: Serialize + for<'a> Deserialize<'a>,
+{
     pub fn new(
         file_path: PathBuf,
         can_create: bool,
@@ -58,12 +64,15 @@ impl<'de, T: Serialize + Deserialize<'de>> RatFile<T> {
             file.write(&base_content)?;
         }
 
-        Ok(Self {
+        let mut rf = Self {
             files: Vec::new(),
             file_path,
             file_size: 0,
             compression_type: compression_type,
-        })
+        };
+
+        rf.files = rf.list_rat_file()?;
+        Ok(rf)
     }
 
     pub(crate) fn get_flag_index(&self, flag: u8) -> Result<u64, Error> {

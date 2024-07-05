@@ -14,6 +14,7 @@ where
             .write(true)
             .append(false)
             .open(self.file_path.clone())?;
+        println!("rat_file_len: {:?}", rat_file.metadata()?.len());
 
         let list = &self.list_rat_file()?;
 
@@ -30,19 +31,29 @@ where
             println!("start: {}, end: {}", start, end);
             let length_to_remove = end - start;
 
-            // Memory map the file
-            let mut mmap = unsafe { MmapMut::map_mut(&rat_file)? };
+            /* MEMAPPING */
+            let file_len: usize;
+            {
+                // Memory map the file
+                let mut mmap = unsafe { MmapMut::map_mut(&rat_file)? };
+                println!("mmap.len(): {}", mmap.len());
 
-            // Shift data after the `end` position to the `start` position
-            let file_len = mmap.len();
-            mmap.copy_within(end..file_len, start);
+                // Shift data after the `end` position to the `start` position
+                file_len = mmap.len();
+                println!("removing {} bytes", end - start);
+                mmap.copy_within(end..file_len, start);
+                println!("mmap.len(): {}", mmap.len());
 
-            // Sync the changes to the file
-            mmap.flush()?;
+                // Sync the changes to the file
+                mmap.flush()?;
+            }
             rat_file.set_len((file_len - length_to_remove) as u64)?;
-
+            println!("yay");
+            println!("rat_file_len: {:?}", rat_file.metadata()?.len());
             // Remove the entry from the metadata
-
+            {
+                let file_info = 'x';
+            }
             //TODO: define .files
             //self.files.remove(i);
 

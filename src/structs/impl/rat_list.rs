@@ -1,5 +1,4 @@
 use crate::structs::{f_item::FileItem, rat_file::RatFile};
-
 use base64::{alphabet, engine, read::DecoderReader};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,12 +6,11 @@ use std::{
     io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom},
 };
 
-#[allow(dead_code)]
 impl<'de, T> RatFile<T>
 where
     T: Serialize + for<'a> Deserialize<'a>,
 {
-    pub(crate) fn list_rat_file(&self) -> Result<Vec<FileItem<T>>, std::io::Error> {
+    pub fn list_rat_file(&self) -> Result<Vec<FileItem<T>>, std::io::Error> {
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
         let header_index = self.get_item_header_index()?;
         let rat_file: File = OpenOptions::new()
