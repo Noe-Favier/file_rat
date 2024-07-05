@@ -76,12 +76,17 @@ where
     }
 
     pub(crate) fn get_flag_index(&self, flag: u8) -> Result<u64, Error> {
+        return self.get_flag_index_skipping(flag, 0);
+    }
+
+    pub(crate) fn get_flag_index_skipping(&self, flag: u8, skipping: usize) -> Result<u64, Error> {
         let mut rat_file_descriptor = File::open(self.file_path.clone())?;
         let current_position: u64 = rat_file_descriptor.stream_position()?;
-
         let buffer_size = Self::BUFFER_SIZE_HEADERS;
         let mut buffer = vec![0; buffer_size];
         let mut position = rat_file_descriptor.seek(SeekFrom::End(0))?;
+
+        let mut iterations = 0;
 
         while position > 0 {
             let read_size = if position < buffer_size as u64 {
@@ -101,7 +106,11 @@ where
             if let Some(p) = buffer[..bytes_read].iter().rposition(|&x| x == flag) {
                 let header_start = p as u64 + position;
                 rat_file_descriptor.seek(SeekFrom::Start(current_position))?;
-                return Ok(header_start);
+                if iterations < skipping {
+                    iterations += 1;
+                } else {
+                    return Ok(header_start);
+                }
             }
         }
 
@@ -112,15 +121,30 @@ where
     /**
      * Give the index BEFORE the general section flag (from start)
      */
-    pub(crate) fn get_general_header_index(&self) -> Result<u64, Error> {
+    pub(crate) fn get_general_header_section_index(&self) -> Result<u64, Error> {
         return self.get_flag_index(Self::HEADER_SECTION_GENERAL_SEPARATOR);
     }
 
     /**
      * Give the index AFTER the item section flag
      */
-    pub(crate) fn get_item_header_index(&self) -> Result<u64, Error> {
+    pub(crate) fn get_item_header_section_index(&self) -> Result<u64, Error> {
         // +1 to skip the flag
         return Ok(self.get_flag_index(Self::HEADER_SECTION_ITEM_SEPARATOR)? + 1);
+    }
+
+    /**
+     * Give the index of the item header (after separator)
+     */
+    pub(crate) fn get_item_header_index(&self, item_index: usize) -> Result<u64, Error> {
+        //since the search is done from the end, the index is reversed
+        //since there is a trailing separator, we need to skip it
+        println!(
+            "files.len(): {}, item_index: {}",
+            self.files.len(),
+            item_index
+        );
+        let computed_index = self.files.len() - item_index + 1;
+        return self.get_flag_index_skipping(Self::HEADER_ITEM_SEPARATOR, computed_index);
     }
 }

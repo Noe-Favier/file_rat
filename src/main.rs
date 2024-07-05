@@ -38,7 +38,7 @@ fn main() {
     let mut rat_file: RatFile<MetadataTest> =
         structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best)
             .unwrap();
-    println!("{:?}", rat_file.get_item_header_index());
+    println!("{:?}", rat_file.get_item_header_section_index());
 
     rat_file
         .insert_to_rat_file(PathBuf::from("./1.txt"), MetadataTest::new())
@@ -49,6 +49,11 @@ fn main() {
     rat_file
         .insert_to_rat_file(PathBuf::from("./3.txt"), MetadataTest::new())
         .expect("Error inserting file to rat file");
+
+    println!(
+        "HEADER INDEX OF 2.txt {:?}",
+        rat_file.get_item_header_index(1)
+    );
 
     rat_file
         .remove(

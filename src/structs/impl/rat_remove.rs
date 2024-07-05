@@ -51,9 +51,7 @@ where
             println!("yay");
             println!("rat_file_len: {:?}", rat_file.metadata()?.len());
             // Remove the entry from the metadata
-            {
-                let file_info = 'x';
-            }
+            {}
             //TODO: define .files
             //self.files.remove(i);
 

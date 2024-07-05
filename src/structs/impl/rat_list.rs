@@ -12,7 +12,7 @@ where
 {
     pub fn list_rat_file(&self) -> Result<Vec<FileItem<T>>, std::io::Error> {
         let engine = engine::GeneralPurpose::new(&alphabet::URL_SAFE, engine::general_purpose::PAD);
-        let header_index = self.get_item_header_index()?;
+        let header_index = self.get_item_header_section_index()?;
         let rat_file: File = OpenOptions::new()
             .read(true)
             .write(false)

@@ -61,7 +61,7 @@ where
         );
         // \\
 
-        let general_header_index = self.get_general_header_index()?;
+        let general_header_index = self.get_general_header_section_index()?;
 
         // Move the general header to a tmp file
         rat_file.seek(SeekFrom::Start(general_header_index))?;
