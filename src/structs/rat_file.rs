@@ -35,6 +35,16 @@ impl<'de, T> RatFile<T>
 where
     T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
+    fn should_reset_on_list_error(err: &Error) -> bool {
+        match err.kind() {
+            // Typical parsing/format failures for damaged or truncated RAT headers.
+            ErrorKind::InvalidData | ErrorKind::UnexpectedEof | ErrorKind::InvalidInput => true,
+            // get_flag_index currently reports missing markers with ErrorKind::Other.
+            ErrorKind::Other => err.to_string().contains("Header not found"),
+            _ => false,
+        }
+    }
+
     fn write_base_content(
         file_path: &PathBuf,
         compression_type: CompressionType,
@@ -57,7 +67,7 @@ where
         ];
 
         let mut file = File::create(file_path)?;
-        file.write(&base_content)?;
+        file.write_all(&base_content)?;
         Ok(())
     }
 
@@ -81,7 +91,7 @@ where
 
         match rf.list_rat_file() {
             Ok(files) => rf.files = files,
-            Err(e) if can_create && e.kind() == ErrorKind::InvalidData => {
+            Err(e) if can_create && Self::should_reset_on_list_error(&e) => {
                 // Recover from corrupted header bytes when caller allows creating/resetting files.
                 Self::write_base_content(&rf.file_path, rf.compression_type.clone())?;
                 rf.files = Vec::new();
@@ -152,6 +162,13 @@ where
      * Give the index of the item header (after separator)
      */
     pub(crate) fn get_item_header_index(&self, item_index: usize) -> Result<u64, Error> {
+        if item_index >= self.files.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Item index out of range",
+            ));
+        }
+
         //since the search is done from the end, the index is reversed
         //since there is a trailing separator, we need to skip it
         let computed_index = self.files.len() - item_index + 1;

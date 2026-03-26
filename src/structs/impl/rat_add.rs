@@ -72,7 +72,7 @@ where
             if bytes_read == 0 {
                 break;
             }
-            tmpfile.write(&buffer[..bytes_read])?;
+            tmpfile.write_all(&buffer[..bytes_read])?;
         }
         tmpfile.flush()?;
 
@@ -87,7 +87,8 @@ where
             if bytes_read == 0 {
                 break;
             }
-            end += rat_file.write(&buffer[..bytes_read])?;
+            rat_file.write_all(&buffer[..bytes_read])?;
+            end += bytes_read;
         }
         rat_file.flush()?;
 
@@ -99,7 +100,7 @@ where
             if bytes_read == 0 {
                 break;
             }
-            rat_file.write(&buffer[..bytes_read])?;
+            rat_file.write_all(&buffer[..bytes_read])?;
         }
 
         // ----- ----- ----- Header ----- ----- ----- //
@@ -116,7 +117,7 @@ where
 
         // header separator
         let mut writer = b64_encoder.finish()?;
-        writer.write(&[Self::HEADER_ITEM_SEPARATOR])?;
+        writer.write_all(&[Self::HEADER_ITEM_SEPARATOR])?;
         // \\
 
         self.files.push(fi.clone());
