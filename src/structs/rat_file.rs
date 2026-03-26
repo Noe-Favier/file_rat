@@ -35,6 +35,32 @@ impl<'de, T> RatFile<T>
 where
     T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
+    fn write_base_content(
+        file_path: &PathBuf,
+        compression_type: CompressionType,
+    ) -> Result<(), Error> {
+        let base_content: [u8; 7] = [
+            // "|" declaring the start of the global header section
+            RatFile::<T>::HEADER_SECTION_GENERAL_SEPARATOR,
+            // version of the rat file
+            RatFile::<T>::RAT_VERSION,
+            // ";"
+            RatFile::<T>::HEADER_ITEM_SEPARATOR,
+            // flag declaring the compression level of the file
+            (compression_type as isize).to_string().as_bytes()[0],
+            // ";"
+            RatFile::<T>::HEADER_ITEM_SEPARATOR,
+            // "0" lock flag
+            b'0',
+            // "%" declaring the start of the item header section
+            RatFile::<T>::HEADER_SECTION_ITEM_SEPARATOR,
+        ];
+
+        let mut file = File::create(file_path)?;
+        file.write(&base_content)?;
+        Ok(())
+    }
+
     pub fn new(
         file_path: PathBuf,
         can_create: bool,
@@ -43,25 +69,7 @@ where
         if !file_path.exists() && !can_create {
             return Err(Error::new(ErrorKind::NotFound, "File not found"));
         } else if !file_path.exists() && can_create {
-            let base_content: [u8; 7] = [
-                //"|" declaring the start of the global header section
-                RatFile::<T>::HEADER_SECTION_GENERAL_SEPARATOR,
-                //version of the rat file
-                RatFile::<T>::RAT_VERSION,
-                // ";"
-                RatFile::<T>::HEADER_ITEM_SEPARATOR,
-                //flag declaring the compression level of the file
-                (compression_type.clone() as isize).to_string().as_bytes()[0],
-                // ";"
-                RatFile::<T>::HEADER_ITEM_SEPARATOR,
-                //"0" lock flag
-                b'0',
-                //"/" declaring the start of the item header section
-                RatFile::<T>::HEADER_SECTION_ITEM_SEPARATOR,
-            ];
-
-            let mut file = File::create(&file_path)?;
-            file.write(&base_content)?;
+            Self::write_base_content(&file_path, compression_type.clone())?;
         }
 
         let mut rf = Self {
@@ -71,7 +79,15 @@ where
             compression_type: compression_type,
         };
 
-        rf.files = rf.list_rat_file()?;
+        match rf.list_rat_file() {
+            Ok(files) => rf.files = files,
+            Err(e) if can_create && e.kind() == ErrorKind::InvalidData => {
+                // Recover from corrupted header bytes when caller allows creating/resetting files.
+                Self::write_base_content(&rf.file_path, rf.compression_type.clone())?;
+                rf.files = Vec::new();
+            }
+            Err(e) => return Err(e),
+        }
         Ok(rf)
     }
 

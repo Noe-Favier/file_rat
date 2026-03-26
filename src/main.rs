@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::structs::enums::compression_type::CompressionType;
 use metatest::MetadataTest;
-use structs::{f_item::FileItem, rat_file::RatFile};
+use structs::rat_file::RatFile;
 
 mod metatest;
 mod structs;
