@@ -6,6 +6,7 @@ use base64::{alphabet, engine, write::EncoderWriter};
 use bzip2::bufread::BzEncoder;
 use serde::{Deserialize, Serialize};
 use std::{
+    ffi::OsStr,
     fs::{File, OpenOptions},
     io::{BufReader, Read, Seek, SeekFrom, Write},
     path::PathBuf,
@@ -37,9 +38,9 @@ where
         // FileItem attributes
         let name = filep
             .file_name()
-            .unwrap()
+            .unwrap_or(OsStr::new("untitled"))
             .to_str()
-            .unwrap_or("untilted")
+            .unwrap_or("untitled")
             .to_string();
         let file_size = file.metadata()?.len();
         // will be incremented as we read the file
