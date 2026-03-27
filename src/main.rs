@@ -1,3 +1,13 @@
+/// Represents the starting index for parsing optional command-line arguments.
+///
+/// In the `cmd_add` function, after the two required positional arguments
+/// (archive path at index 0 and file path at index 1), all subsequent arguments
+/// are optional flags like `--compression`, `--meta`, etc.
+///
+/// Starting at index 2 ensures we skip over the required arguments and begin
+/// processing only the optional parameters.
+const OPTIONAL_ARGS_START_INDEX: usize = 2;
+
 use std::{
     env,
     fs::File,
@@ -60,14 +70,28 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let file_path = PathBuf::from(&args[1]);
 
     let mut metadata = RatMeta::<RatMetaMap>::new_object();
-    let mut compression = CompressionType::Best;
+    let mut compression_override: Option<CompressionType> = None;
 
-    let mut i = 2;
+    let mut i = OPTIONAL_ARGS_START_INDEX;
     while i < args.len() {
         match args[i].as_str() {
             "--compression" => {
                 let value = next_arg(args, &mut i, "--compression")?;
-                compression = parse_compression(&value)?;
+
+                if CompressionType::is_valid(&value) {
+                    compression_override = Some(
+                        CompressionType::from_str(&value)
+                            .unwrap(), //panic if the value is not valid (may not happen)
+                    );
+                } else {
+                    return Err(Box::new(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "Invalid compression value '{}', expected 'fast', 'best' or 'default'",
+                            value
+                        ),
+                    )));
+                }
             }
             "--meta" => {
                 let assignment = next_arg(args, &mut i, "--meta")?;
@@ -90,8 +114,11 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut rat_file: RatFile<RatMeta<RatMetaMap>>;
+    let compression_to_use: CompressionType;
     if File::open(&archive_path).is_ok() {
         rat_file = RatFile::open(archive_path)?;
+        compression_to_use = compression_override
+            .unwrap_or_else(|| rat_file.compression_type.clone());
     } else {
         println!("Archive not found, should be created: {:?}", archive_path);
 
@@ -104,9 +131,10 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             )));
         }
 
-        rat_file = RatFile::new(archive_path, can_create, compression)?;
+        compression_to_use = compression_override.unwrap_or(prompt_compression_type()?);
+        rat_file = RatFile::new(archive_path, can_create, compression_to_use.clone())?;
     }
-    let item = rat_file.insert_to_rat_file(file_path, metadata)?;
+    let item = rat_file.insert_to_rat_file(file_path, metadata, compression_to_use)?;
 
     println!("Added '{}' ({})", item.name, item.id);
     Ok(())
@@ -131,6 +159,40 @@ fn prompt_yes_or_no(message: &str) -> Result<bool, Box<dyn std::error::Error>> {
             input.clear();
             io::stdin().read_line(&mut input)?;
         }
+    }
+}
+
+fn prompt_compression_type() -> Result<CompressionType, Box<dyn std::error::Error>> {
+    loop {
+        print!("what default compression type for the new archive ? (y/yes or empty = default, n/no = choose): ");
+        io::Write::flush(&mut io::stdout())?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let choice = input.trim().to_ascii_lowercase();
+
+        if choice.is_empty() || choice == "y" || choice == "yes" {
+            return Ok(CompressionType::default());
+        }
+
+        if choice == "n" || choice == "no" {
+            loop {
+                print!("Choose compression (fast|best|default): ");
+                io::Write::flush(&mut io::stdout())?;
+
+                input.clear();
+                io::stdin().read_line(&mut input)?;
+                let value = input.trim().to_ascii_lowercase();
+
+                if CompressionType::is_valid(&value) {
+                    return Ok(CompressionType::from_str(&value).unwrap_or_default());
+                }
+
+                println!("Invalid value. Please enter 'fast', 'best' or 'default'.");
+            }
+        }
+
+        println!("Please enter 'y'/'yes', 'n'/'no', or press Enter.");
     }
 }
 
@@ -213,15 +275,6 @@ fn resolve_item_id(
         ErrorKind::NotFound,
         format!("Item '{}' not found", selector),
     )))
-}
-
-fn parse_compression(value: &str) -> Result<CompressionType, Box<dyn std::error::Error>> {
-    match value.to_ascii_lowercase().as_str() {
-        "fast" => Ok(CompressionType::Fast),
-        "best" => Ok(CompressionType::Best),
-        "default" => Ok(CompressionType::Default),
-        _ => Ok(CompressionType::Default),
-    }
 }
 
 fn next_arg(

@@ -3,5 +3,6 @@
 
 *.txt
 *.txt.extracted
+*.png
 
 *.rat

@@ -21,6 +21,7 @@ where
         &mut self,
         filep: PathBuf,
         metadata: T,
+        compression_type: CompressionType,
     ) -> Result<FileItem<T>, std::io::Error> {
         let buffer_size = Self::BUFFER_SIZE;
         // rat file descriptor (opened with write permissions)
@@ -54,7 +55,7 @@ where
         let br: BufReader<File> = BufReader::new(file);
         let mut encoder = BzEncoder::new(
             br,
-            match self.compression_type {
+            match compression_type {
                 CompressionType::Fast => bzip2::Compression::fast(),
                 CompressionType::Best => bzip2::Compression::best(),
                 CompressionType::Default => bzip2::Compression::default(),
@@ -104,7 +105,14 @@ where
         }
 
         // ----- ----- ----- Header ----- ----- ----- //
-        let fi = FileItem::new(name, metadata, file_size, start, end as u64);
+        let fi = FileItem::new(
+            name,
+            metadata,
+            file_size,
+            start,
+            end as u64,
+            compression_type.to_u8(),
+        );
 
         // header
         let header_s = serde_json::to_string(&fi)?;

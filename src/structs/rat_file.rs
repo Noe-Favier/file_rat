@@ -96,7 +96,8 @@ where
             RatFile::<T>::RAT_VERSION,
             // ";"
             RatFile::<T>::HEADER_ITEM_SEPARATOR,
-            // flag declaring the compression level of the file
+            // flag declaring the default compression level of the file
+            // Note: `default` in this context is not linked to the `CompressionType::Default` enum variant which is just a naming coincidence.
             (compression_type as isize).to_string().as_bytes()[0],
             // ";"
             RatFile::<T>::HEADER_ITEM_SEPARATOR,

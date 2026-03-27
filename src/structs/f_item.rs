@@ -11,10 +11,11 @@ pub struct FileItem<T> {
     pub(crate) start: u64,
     pub(crate) end: u64,
     pub(crate) size: u64,
+    pub(crate) compression_type: Option<u8>,
 }
 
 impl<T> FileItem<T> {
-    pub fn new(name: String, metadata: T, size: u64, start: u64, end: u64) -> Self {
+    pub fn new(name: String, metadata: T, size: u64, start: u64, end: u64, compression_type: u8) -> Self {
         let context = Context::new_random();
 
         let t: Timestamp = Timestamp::now(context);
@@ -27,6 +28,7 @@ impl<T> FileItem<T> {
             start,
             end,
             size,
+            compression_type: Some(compression_type),
         }
     }
 }

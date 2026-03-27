@@ -1,4 +1,5 @@
 use crate::structs::rat_file::RatFile;
+use crate::structs::enums::compression_type::CompressionType;
 use bzip2::read::BzDecoder;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -48,9 +49,18 @@ where
         let mut encoded_data = vec![0u8; (target.end - target.start) as usize];
         rat_file.read_exact(&mut encoded_data)?;
 
+        let item_compression = target
+            .compression_type
+            .and_then(CompressionType::from_u8)
+            .unwrap_or(self.compression_type.clone());
+
         let mut bz_decoder = BzDecoder::new(&encoded_data[..]);
         let mut output_file = File::create(&output_path)?;
-        std::io::copy(&mut bz_decoder, &mut output_file)?;
+        match item_compression {
+            CompressionType::Fast | CompressionType::Best | CompressionType::Default => {
+                std::io::copy(&mut bz_decoder, &mut output_file)?;
+            }
+        }
         output_file.flush()?;
 
         if should_remove {
