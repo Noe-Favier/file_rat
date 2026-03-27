@@ -35,6 +35,46 @@ impl<'de, T> RatFile<T>
 where
     T: Serialize + for<'a> Deserialize<'a> + Clone,
 {
+    fn parse_compression_type(value: u8) -> Result<CompressionType, Error> {
+        match value {
+            b'1' => Ok(CompressionType::Fast),
+            b'2' => Ok(CompressionType::Best),
+            b'3' => Ok(CompressionType::Default),
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid compression type in header",
+            )),
+        }
+    }
+
+    fn read_compression_type(file_path: &PathBuf) -> Result<CompressionType, Error> {
+        let probe = Self {
+            files: Vec::new(),
+            file_path: file_path.clone(),
+            file_size: 0,
+            compression_type: CompressionType::Default,
+        };
+        let general_header_index = probe.get_general_header_section_index()?;
+
+        let mut file = File::open(file_path)?;
+        file.seek(SeekFrom::Start(general_header_index))?;
+        let mut header = [0u8; 7];
+        file.read_exact(&mut header)?;
+
+        if header[0] != Self::HEADER_SECTION_GENERAL_SEPARATOR
+            || header[2] != Self::HEADER_ITEM_SEPARATOR
+            || header[4] != Self::HEADER_ITEM_SEPARATOR
+            || header[6] != Self::HEADER_SECTION_ITEM_SEPARATOR
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Invalid RAT header format",
+            ));
+        }
+
+        Self::parse_compression_type(header[3])
+    }
+
     fn should_reset_on_list_error(err: &Error) -> bool {
         match err.kind() {
             // Typical parsing/format failures for damaged or truncated RAT headers.
@@ -98,6 +138,23 @@ where
             }
             Err(e) => return Err(e),
         }
+        Ok(rf)
+    }
+
+    pub fn open(file_path: PathBuf) -> Result<Self, Error> {
+        if !file_path.exists() {
+            return Err(Error::new(ErrorKind::NotFound, "File not found"));
+        }
+
+        let compression_type = Self::read_compression_type(&file_path)?;
+        let mut rf = Self {
+            files: Vec::new(),
+            file_path,
+            file_size: 0,
+            compression_type,
+        };
+
+        rf.files = rf.list_rat_file()?;
         Ok(rf)
     }
 

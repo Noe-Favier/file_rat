@@ -1,128 +1,270 @@
-use std::path::PathBuf;
+use std::{
+    env,
+    fs::File,
+    io::{self, Error, ErrorKind},
+    path::PathBuf,
+};
+use uuid::Uuid;
 
 use crate::structs::enums::compression_type::CompressionType;
-use crate::structs::rat_meta::{RatMeta, RatMetaObject};
+use crate::structs::rat_meta::{RatMeta, RatMetaMap};
 use structs::rat_file::RatFile;
 
 mod structs;
 
 fn main() {
-    //let rfile= new Rfile<Metadata.class>(fileRef);
-
-    /*
-    > add to end of data -> binrw file content
-    > add to end of hadr -> (start>end + file name + metadata in json + unique id)
-
-
-    file format :
-
-    [--@DATA@--|headers]
-
-
-    pre-cond to an update :
-        - the disk needs filesize in worst case of room + headers
-        - rights 700 on file
-        - rat file is not in EOF
-
-    technical specs :
-        - the Metadata motherclass must have a serial id autocalculated
-        - the rat processor can be made
-                - serial ignorant to disable serial checks
-                - high/low compression level
-                - encrypted headers
-
-
-    */
-
-    let mut rat_file: RatFile<RatMeta<RatMetaObject>> =
-        structs::rat_file::RatFile::new(PathBuf::from("./test.rat"), true, CompressionType::Best)
-            .unwrap();
-    println!("{:?}", rat_file.get_item_header_section_index());
-
-    let _f1 = rat_file
-        .insert_to_rat_file(PathBuf::from("./1.txt"), build_meta("alice", "invoice", 1))
-        .expect("Error inserting file to rat file");
-    println!(
-        "HEADER INDEX OF 1.txt {:?}",
-        rat_file.get_item_header_index(0)
-    );
-
-    let f2 = rat_file
-        .insert_to_rat_file(PathBuf::from("./2.txt"), build_meta("bob", "report", 2))
-        .expect("Error inserting file to rat file");
-    println!(
-        "HEADER INDEX OF 2.txt {:?}",
-        rat_file.get_item_header_index(1)
-    );
-
-    let f3 = rat_file
-        .insert_to_rat_file(PathBuf::from("./3.txt"), build_meta("carol", "archive", 3))
-        .expect("Error inserting file to rat file");
-
-    println!(
-        "HEADER INDEX OF 1.txt {:?}",
-        rat_file.get_item_header_index(0)
-    );
-
-    println!(
-        "HEADER INDEX OF 2.txt {:?}",
-        rat_file.get_item_header_index(1)
-    );
-
-    println!(
-        "HEADER INDEX OF 3.txt {:?}",
-        rat_file.get_item_header_index(2)
-    );
-
-    println!("-----------------------------");
-
-    let f2_extract_dest = PathBuf::from(format!("{}.extracted", f2.name));
-    let extracted_2 = rat_file
-        .extract(f2.id, f2_extract_dest, false)
-        .expect("Error extracting file 2 from rat file");
-    println!("Extracted file 2 to {:?} (no remove)", extracted_2);
-
-    print_rat_file_size_in_bytes(&rat_file).unwrap();
-
-    let f3_extract_dest = PathBuf::from(format!("{}.extracted", f3.name));
-    let extracted_3 = rat_file
-        .extract(f3.id, f3_extract_dest, true)
-        .expect("Error extracting file 3 from rat file");
-    println!(
-        "Extracted file 3 to {:?} and removed from archive",
-        extracted_3
-    );
-    print_rat_file_size_in_bytes(&rat_file).unwrap();
-
-    println!("-----------------------------");
-
-    println!("+ Current files in rat file:");
-    println!("{:?}", rat_file.list_rat_file().unwrap());
-
-    println!("-----------------------------");
-
-    rat_file
-        .remove(f2.id)
-        .expect("Error removing file 2 from rat file");
-    println!("Removed file 2 from rat file");
-
-    print_rat_file_size_in_bytes(&rat_file).unwrap();
-
-    println!("-----------------------------");
-    println!("+ Current files in rat file:");
-    println!("{:?}", rat_file.list_rat_file().unwrap());
+    if let Err(error) = run() {
+        eprintln!("Error: {error}");
+        std::process::exit(1);
+    }
 }
 
-fn print_rat_file_size_in_bytes<T>(rat_file: &RatFile<T>) -> std::io::Result<()> {
-    let metadata = std::fs::metadata(&rat_file.file_path)?;
-    println!("Rat file size: {} bytes", metadata.len());
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args.is_empty()
+        || args[0] == "help"
+        || args[0] == "--help"
+        || args[0] == "-help"
+        || args[0] == "-h"
+    {
+        print_usage();
+        return Ok(());
+    }
+
+    match args[0].as_str() {
+        "add" => cmd_add(&args[1..])?,
+        "list" => cmd_list(&args[1..])?,
+        "extract" => cmd_extract(&args[1..])?,
+        "remove" => cmd_remove(&args[1..])?,
+        _ => {
+            print_usage();
+            return Err(Box::new(Error::new(
+                ErrorKind::InvalidInput,
+                format!("Unknown command '{}'", args[0]),
+            )));
+        }
+    }
+
     Ok(())
 }
 
-fn build_meta(owner: &str, category: &str, priority: u64) -> RatMeta<RatMetaObject> {
-    let mut meta = RatMeta::new_object();
-    meta.insert_custom("owner", owner);
-    meta.insert_custom("category", category);
-    meta.insert_custom("priority", priority);
-    meta
+fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() < 2 {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            "Usage: add <archive.rat> <file> [--compression fast|best|default] [--meta name=value] [--meta name2=value2 ...]",
+        )));
+    }
+
+    let archive_path = PathBuf::from(&args[0]);
+    let file_path = PathBuf::from(&args[1]);
+
+    let mut metadata = RatMeta::<RatMetaMap>::new_object();
+    let mut compression = CompressionType::Best;
+
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--compression" => {
+                let value = next_arg(args, &mut i, "--compression")?;
+                compression = parse_compression(&value)?;
+            }
+            "--meta" => {
+                let assignment = next_arg(args, &mut i, "--meta")?;
+                let (key, value) = parse_meta_assignment(&assignment)?;
+                metadata.insert_custom(key, serde_json::Value::String(value));
+            }
+            _ => {
+                if let Some(assignment) = args[i].strip_prefix("--meta=") {
+                    let (key, value) = parse_meta_assignment(assignment)?;
+                    metadata.insert_custom(key, serde_json::Value::String(value));
+                } else {
+                    return Err(Box::new(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!("Unknown flag '{}'", args[i]),
+                    )));
+                }
+            }
+        }
+        i += 1;
+    }
+
+    let mut rat_file: RatFile<RatMeta<RatMetaMap>>;
+    if File::open(&archive_path).is_ok() {
+        rat_file = RatFile::open(archive_path)?;
+    } else {
+        println!("Archive not found, should be created: {:?}", archive_path);
+
+        let can_create = prompt_yes_or_no("Create archive? (y/n): ")?;
+        if !can_create {
+            println!("Aborting, Goodbye!");
+            return Err(Box::new(Error::new(
+                ErrorKind::NotFound,
+                "Archive not found and creation was declined",
+            )));
+        }
+
+        rat_file = RatFile::new(archive_path, can_create, compression)?;
+    }
+    let item = rat_file.insert_to_rat_file(file_path, metadata)?;
+
+    println!("Added '{}' ({})", item.name, item.id);
+    Ok(())
+}
+
+fn prompt_yes_or_no(message: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    print!("{}", message);
+    io::Write::flush(&mut io::stdout())?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    loop {
+        let value = input.trim().to_ascii_lowercase();
+        if value == "yes" || value == "y" {
+            return Ok(true);
+        } else if value == "no" || value == "n" {
+            return Ok(false);
+        } else {
+            print!("Please enter 'yes'/'y' or 'no'/'n': ");
+            io::Write::flush(&mut io::stdout())?;
+            input.clear();
+            io::stdin().read_line(&mut input)?;
+        }
+    }
+}
+
+fn cmd_list(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() != 1 {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            "Usage: list <archive.rat>",
+        )));
+    }
+
+    let rat_file: RatFile<RatMeta<RatMetaMap>> = RatFile::open(PathBuf::from(&args[0]))?;
+    let items = rat_file.list_rat_file()?;
+
+    if items.is_empty() {
+        println!("Archive is empty");
+        return Ok(());
+    }
+
+    for item in items {
+        println!("{} | {} | {} bytes", item.id, item.name, item.size);
+    }
+
+    Ok(())
+}
+
+fn cmd_extract(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() < 3 {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            "Usage: extract <archive.rat> <id> <destination> [--remove]",
+        )));
+    }
+
+    let archive_path = PathBuf::from(&args[0]);
+    let selector = &args[1];
+    let destination = PathBuf::from(&args[2]);
+    let should_remove = args.iter().skip(3).any(|arg| arg == "--remove");
+
+    let mut rat_file: RatFile<RatMeta<RatMetaMap>> = RatFile::open(archive_path)?;
+    let id = resolve_item_id(&rat_file, selector)?;
+    let output = rat_file.extract(id, destination, should_remove)?;
+
+    println!("Extracted to {:?}", output);
+    Ok(())
+}
+
+fn cmd_remove(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() != 2 {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            "Usage: remove <archive.rat> <id>",
+        )));
+    }
+
+    let mut rat_file: RatFile<RatMeta<RatMetaMap>> = RatFile::open(PathBuf::from(&args[0]))?;
+    let id = resolve_item_id(&rat_file, &args[1])?;
+    rat_file.remove(id)?;
+    println!("Removed '{}'", args[1]);
+    Ok(())
+}
+
+fn resolve_item_id(
+    rat_file: &RatFile<RatMeta<RatMetaMap>>,
+    selector: &str,
+) -> Result<Uuid, Box<dyn std::error::Error>> {
+    let items = rat_file.list_rat_file()?;
+
+    if let Ok(parsed_uuid) = Uuid::parse_str(selector) {
+        if items.iter().any(|item| item.id == parsed_uuid) {
+            return Ok(parsed_uuid);
+        }
+    }
+
+    if let Some(item) = items.iter().find(|item| item.name == selector) {
+        return Ok(item.id);
+    }
+
+    Err(Box::new(Error::new(
+        ErrorKind::NotFound,
+        format!("Item '{}' not found", selector),
+    )))
+}
+
+fn parse_compression(value: &str) -> Result<CompressionType, Box<dyn std::error::Error>> {
+    match value.to_ascii_lowercase().as_str() {
+        "fast" => Ok(CompressionType::Fast),
+        "best" => Ok(CompressionType::Best),
+        "default" => Ok(CompressionType::Default),
+        _ => Ok(CompressionType::Default),
+    }
+}
+
+fn next_arg(
+    args: &[String],
+    index: &mut usize,
+    flag: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let value_index = *index + 1;
+    let Some(value) = args.get(value_index) else {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            format!("Missing value for {}", flag),
+        )));
+    };
+
+    *index = value_index;
+    Ok(value.to_string())
+}
+
+fn parse_meta_assignment(assignment: &str) -> Result<(String, String), Box<dyn std::error::Error>> {
+    let mut parts = assignment.splitn(2, '=');
+    let key = parts.next().unwrap_or_default().trim();
+    let value = parts.next().unwrap_or_default();
+
+    if key.is_empty() || value.is_empty() {
+        return Err(Box::new(Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "Invalid metadata format '{}', expected --meta name=value",
+                assignment
+            ),
+        )));
+    }
+
+    Ok((key.to_string(), value.to_string()))
+}
+
+fn print_usage() {
+    println!("file_rat CLI");
+    println!("Usage:");
+    println!("  file_rat add <archive.rat> <file> [--compression fast|best|default] [--meta name=value] [--meta name2=value2 ...]");
+    println!("  file_rat list <archive.rat>");
+    println!("  file_rat extract <archive.rat> <id> <destination> [--remove]");
+    println!("  file_rat remove <archive.rat> <id>");
+    println!("  file_rat help");
 }

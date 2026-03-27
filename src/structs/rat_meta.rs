@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 #[allow(dead_code)]
-pub type RatMetaObject = Map<String, Value>;
+pub type RatMetaMap = Map<String, Value>;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct RatMetaBase {
+pub(crate) struct RatMetaBase {
     pub created_at: u64,
 }
 
@@ -18,7 +18,7 @@ pub struct RatMeta<TCustom> {
 }
 
 impl RatMetaBase {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -39,7 +39,7 @@ impl<TCustom> RatMeta<TCustom> {
 }
 
 #[allow(dead_code)]
-impl RatMeta<RatMetaObject> {
+impl RatMeta<RatMetaMap> {
     pub fn new_object() -> Self {
         Self::new(Map::new())
     }
