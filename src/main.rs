@@ -62,7 +62,7 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 2 {
         return Err(Box::new(Error::new(
             ErrorKind::InvalidInput,
-            "Usage: add <archive.rat> <file> [--compression fast|best|default] [--meta name=value] [--meta name2=value2 ...]",
+            "Usage: add <archive.rat> <file> [--compression fast|best|default] [--stfu] [--meta name=value] [--meta name2=value2 ...]",
         )));
     }
 
@@ -73,6 +73,7 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let mut compression_override: Option<CompressionType> = None;
 
     let mut i = OPTIONAL_ARGS_START_INDEX;
+    let mut stfu_flag = false;
     while i < args.len() {
         match args[i].as_str() {
             "--compression" => {
@@ -81,7 +82,7 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
                 if CompressionType::is_valid(&value) {
                     compression_override = Some(
                         CompressionType::from_str(&value)
-                            .unwrap(), //panic if the value is not valid (may not happen)
+                            .unwrap_or_default(),
                     );
                 } else {
                     return Err(Box::new(Error::new(
@@ -97,6 +98,14 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
                 let assignment = next_arg(args, &mut i, "--meta")?;
                 let (key, value) = parse_meta_assignment(&assignment)?;
                 metadata.insert_custom(key, serde_json::Value::String(value));
+            }
+            "--stfu" => {
+                // stfu flag suppresses all prompts and allows archive creation with enum default compression
+                // if the archive needs to be created. It has no effect if the archive already exists.
+                // This is useful for scripting and automation when you want to ensure the command runs without any prompts.
+                // When --stfu is used, if the archive doesn't exist, it will be created with the default compression type without asking the user.
+
+                stfu_flag = true;
             }
             _ => {
                 if let Some(assignment) = args[i].strip_prefix("--meta=") {
@@ -122,7 +131,11 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("Archive not found, should be created: {:?}", archive_path);
 
-        let can_create = prompt_yes_or_no("Create archive? (y/n): ")?;
+        let can_create = if stfu_flag {
+            true
+        } else {
+            prompt_yes_or_no("Create archive? (y/n): ")?
+        };
         if !can_create {
             println!("Aborting, Goodbye!");
             return Err(Box::new(Error::new(
@@ -131,7 +144,14 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             )));
         }
 
-        compression_to_use = compression_override.unwrap_or(prompt_compression_type()?);
+        compression_to_use = compression_override.unwrap_or(
+            if stfu_flag {
+                CompressionType::default()
+            } else {
+                prompt_compression_type()?
+            }
+        );
+        
         rat_file = RatFile::new(archive_path, can_create, compression_to_use.clone())?;
     }
     let item = rat_file.insert_to_rat_file(file_path, metadata, compression_to_use)?;
@@ -164,7 +184,7 @@ fn prompt_yes_or_no(message: &str) -> Result<bool, Box<dyn std::error::Error>> {
 
 fn prompt_compression_type() -> Result<CompressionType, Box<dyn std::error::Error>> {
     loop {
-        print!("what default compression type for the new archive ? (y/yes or empty = default, n/no = choose): ");
+        print!("Use default compression? (y/yes or Enter = default, n/no = choose): ");
         io::Write::flush(&mut io::stdout())?;
 
         let mut input = String::new();
@@ -176,8 +196,9 @@ fn prompt_compression_type() -> Result<CompressionType, Box<dyn std::error::Erro
         }
 
         if choice == "n" || choice == "no" {
+            println!("Available compression modes: fast | best | default");
             loop {
-                print!("Choose compression (fast|best|default): ");
+                print!("Choose compression mode: ");
                 io::Write::flush(&mut io::stdout())?;
 
                 input.clear();
@@ -315,7 +336,7 @@ fn parse_meta_assignment(assignment: &str) -> Result<(String, String), Box<dyn s
 fn print_usage() {
     println!("file_rat CLI");
     println!("Usage:");
-    println!("  file_rat add <archive.rat> <file> [--compression fast|best|default] [--meta name=value] [--meta name2=value2 ...]");
+    println!("  file_rat add <archive.rat> <file> [--compression fast|best|default] [--stfu] [--meta name=value] [--meta name2=value2 ...]");
     println!("  file_rat list <archive.rat>");
     println!("  file_rat extract <archive.rat> <id> <destination> [--remove]");
     println!("  file_rat remove <archive.rat> <id>");
