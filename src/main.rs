@@ -129,7 +129,9 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         compression_to_use = compression_override
             .unwrap_or_else(|| rat_file.compression_type.clone());
     } else {
-        println!("Archive not found, should be created: {:?}", archive_path);
+        if !stfu_flag {
+            println!("Archive not found, should be created: {:?}", archive_path);
+        }
 
         let can_create = if stfu_flag {
             true
@@ -156,7 +158,9 @@ fn cmd_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     let item = rat_file.insert_to_rat_file(file_path, metadata, compression_to_use)?;
 
-    println!("Added '{}' ({})", item.name, item.id);
+    if !stfu_flag {
+        println!("Added '{}' ({})", item.name, item.id);
+    }
     Ok(())
 }
 
