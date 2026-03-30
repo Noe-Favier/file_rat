@@ -38,3 +38,9 @@ the main goal of this project are :
 - [x] possibility to add metadata
 - [ ] fast & optimized (we're far)
 - [ ] make a crate (mainly to use it myself in my project "fd2")
+
+## Limitations
+
+Mempaps sucks. the gain on listing is not that good in comparison of the cost of extraction. s/o the benchmark [made here](./out/compression_report.md).
+
+V2 will be focused on making a zip like format. or a header table in a separated file. needs to be thought about.
